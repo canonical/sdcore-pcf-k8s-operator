@@ -1,0 +1,27 @@
+name: sdcore-pcf
+
+display-name: SD-CORE 5G PCF
+summary: A Charmed Operator for SDCORE's PCF component.
+description: |
+  A Charmed Operator for SDCORE's Policy Control Function (PCF) component.
+
+containers:
+  pcf:
+    resource: pcf-image
+    mounts:
+      - storage: config
+        location: /etc/pcf/
+
+resources:
+  pcf-image:
+    type: oci-image
+    description: OCI image for 5G pcf
+    upstream-source: omecproject/5gc-pcf:master-bcbdeb0
+
+storage:
+  config:
+    type: filesystem
+    minimum-size: 1M
+
+assumes:
+  - k8s-api
