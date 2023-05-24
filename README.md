@@ -12,7 +12,7 @@
   <h1>SD-Core PCF Operator</h1>
 </div>
 
-A Charmed Operator for SDCORE's Policy Control Function (PCF) component. 
+A Charmed Operator for SD-Core's Policy Control Function (PCF) component. 
 
 ## Usage
 
