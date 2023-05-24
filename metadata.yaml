@@ -1,6 +1,6 @@
 name: sdcore-pcf
 
-display-name: SD-CORE 5G PCF
+display-name: SD-Core PCF
 summary: A Charmed Operator for SDCORE's PCF component.
 description: |
   A Charmed Operator for SDCORE's Policy Control Function (PCF) component.
