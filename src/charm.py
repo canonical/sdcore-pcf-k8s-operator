@@ -2,7 +2,7 @@
 # Copyright 2023 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-"""Charmed operator for the 5G PCF service."""
+"""Charmed operator for the SD-Core's PCF service."""
 
 import logging
 
