@@ -3,7 +3,7 @@ name: sdcore-pcf
 display-name: SD-Core PCF
 summary: A Charmed Operator for SD-Core's PCF component.
 description: |
-  A Charmed Operator for SDCORE's Policy Control Function (PCF) component.
+  A Charmed Operator for SD-Core's Policy Control Function (PCF) component.
 
 containers:
   pcf:
