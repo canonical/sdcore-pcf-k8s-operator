@@ -1,0 +1,24 @@
+configuration:
+  defaultBdtRefId: BdtPolicyId-
+  mongodb:
+    name: {{ database_name }}
+    url: {{ database_url }}
+  nrfUri: {{ nrf_url }}
+  pcfName: PCF
+  sbi:
+    bindingIPv4: 0.0.0.0
+    port: {{ pcf_sbi_port }}
+    registerIPv4: {{ pcf_hostname }}
+    scheme: http
+  serviceList:
+  - serviceName: npcf-am-policy-control
+  - serviceName: npcf-smpolicycontrol
+    suppFeat: 3fff
+  - serviceName: npcf-bdtpolicycontrol
+  - serviceName: npcf-policyauthorization
+    suppFeat: 3
+  - serviceName: npcf-eventexposure
+  - serviceName: npcf-ue-policy-control
+info:
+  description: PCF initial local configuration
+  version: 1.0.0

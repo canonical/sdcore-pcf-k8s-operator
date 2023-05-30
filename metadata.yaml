@@ -23,5 +23,11 @@ storage:
     type: filesystem
     minimum-size: 1M
 
+requires:
+  database:
+    interface: mongodb_client
+  fiveg_nrf:
+    interface: fiveg_nrf
+
 assumes:
   - k8s-api
