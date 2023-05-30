@@ -87,11 +87,11 @@ class PCFOperatorCharm(CharmBase):
         self._configure_pebble(restart=restart)
         self.unit.status = ActiveStatus()
 
-    def _configure_pebble(self, restart=False) -> None:
+    def _configure_pebble(self, restart: bool = False) -> None:
         """Configure the Pebble layer.
 
         Args:
-            restart (bool, optional): Whether to restart the Pebble service. Defaults to False.
+            restart (bool): Whether to restart the Pebble service. Defaults to False.
         """
         self._container.add_layer(self._container_name, self._pebble_layer, combine=True)
         if restart:
