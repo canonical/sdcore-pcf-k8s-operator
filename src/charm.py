@@ -114,7 +114,7 @@ class PCFOperatorCharm(CharmBase):
             database_url=self._get_database_data()["uris"].split(",")[0],
             nrf_url=self._nrf_requires.nrf_url,
             pcf_sbi_port=PCF_SBI_PORT,
-            pcf_hostname=self._pcf_hostname,
+            pod_ip=str(self._get_pod_ip()),
         )
         if not self._config_file_is_written() or not self._config_file_content_matches(
             content=content
@@ -130,14 +130,14 @@ class PCFOperatorCharm(CharmBase):
         database_url: str,
         nrf_url: str,
         pcf_sbi_port: int,
-        pcf_hostname: str,
+        pod_ip: str,
     ) -> str:
         """Renders the config file content.
 
         Args:
             nrf_url (str): NRF URL.
             pcf_sbi_port (int): PCF SBI port.
-            pcf_hostname (str): PCF URL.
+            pod_ip (str): Pod IPv4.
 
         Returns:
             str: Config file content.
@@ -149,7 +149,7 @@ class PCFOperatorCharm(CharmBase):
             database_url=database_url,
             nrf_url=nrf_url,
             pcf_sbi_port=pcf_sbi_port,
-            pcf_hostname=pcf_hostname,
+            pod_ip=pod_ip,
         )
 
     def _write_config_file(self, content: str) -> None:
@@ -277,15 +277,6 @@ class PCFOperatorCharm(CharmBase):
             Optional[IPv4Address]: The IP address of the Kubernetes pod.
         """
         return IPv4Address(check_output(["unit-get", "private-address"]).decode().strip())
-
-    @property
-    def _pcf_hostname(self) -> str:
-        """Returns the PCF hostname.
-
-        Returns:
-            str: The PCF hostname.
-        """
-        return f"{self.model.app.name}.{self.model.name}.svc.cluster.local"
 
 
 if __name__ == "__main__":  # pragma: no cover
