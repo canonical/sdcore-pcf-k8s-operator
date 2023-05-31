@@ -74,7 +74,9 @@ class PCFOperatorCharm(CharmBase):
                 )
                 return
         if not self._database_is_available():
-            self.unit.status = WaitingStatus("Waiting for `database` relation to be available")
+            self.unit.status = WaitingStatus(
+                f"Waiting for `{DATABASE_RELATION_NAME}` relation to be available"
+            )
             return
         if not self._nrf_is_available():
             self.unit.status = WaitingStatus("Waiting for NRF endpoint to be available")
