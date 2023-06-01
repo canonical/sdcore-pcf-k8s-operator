@@ -17,9 +17,14 @@ A Charmed Operator for SD-Core's Policy Control Function (PCF) component.
 ## Usage
 
 ```bash
-juju deploy sdcore-pcf --trust --channel=edge
+juju deploy mongodb-k8s --channel 5/edge --trust
+juju deploy sdcore-nrf --channel edge --trust
+juju deploy sdcore-pcf --channel edge --trust 
+
+juju integrate sdcore-pcf mongodb-k8s
+juju integrate sdcore-pcf:fiveg_nrf sdcore-nrf
 ```
 
 ## Image
 
-- **pcf**: `omecproject/5gc-pcf:master-bcbdeb0`
+**pcf**: `omecproject/5gc-pcf:master-bcbdeb0`
