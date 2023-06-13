@@ -330,3 +330,28 @@ class TestCharm(unittest.TestCase):
         self.harness.charm._configure_sdcore_pcf(event=Mock())
 
         self.assertEqual(self.harness.model.unit.status, ActiveStatus())
+
+    @patch("ops.model.Container.restart", new=Mock)
+    @patch("charm.check_output")
+    @patch("ops.model.Container.pull", new=Mock)
+    @patch("ops.model.Container.exists")
+    @patch("ops.Container.push", new=Mock)
+    @patch("charms.sdcore_nrf.v0.fiveg_nrf.NRFRequires.nrf_url", new_callable=PropertyMock)
+    def test_given_ip_not_available_when_configure_then_status_is_waiting(
+        self,
+        patched_nrf_url,
+        patch_exists,
+        patch_check_output,
+    ):
+        patch_check_output.return_value = "".encode()
+        self._create_nrf_relation()
+        self._database_is_available()
+        self.harness.charm._storage_is_attached = Mock(return_value=True)
+        patch_exists.return_value = [True, False]
+
+        self.harness.container_pebble_ready(container_name="pcf")
+
+        self.assertEqual(
+            self.harness.model.unit.status,
+            WaitingStatus("Waiting for pod IP address to be available"),
+        )
