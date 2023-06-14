@@ -85,6 +85,10 @@ class PCFOperatorCharm(CharmBase):
             self.unit.status = WaitingStatus("Waiting for the storage to be attached")
             event.defer()
             return
+        if not _get_pod_ip():
+            self.unit.status = WaitingStatus("Waiting for pod IP address to be available")
+            event.defer()
+            return
         restart = self._update_config_file()
         self._configure_pebble(restart=restart)
         self.unit.status = ActiveStatus()
@@ -116,7 +120,7 @@ class PCFOperatorCharm(CharmBase):
             database_url=self._get_database_data()["uris"].split(",")[0],
             nrf_url=self._nrf_requires.nrf_url,
             pcf_sbi_port=PCF_SBI_PORT,
-            pod_ip=str(self._get_pod_ip()),
+            pod_ip=_get_pod_ip(),  # type: ignore[arg-type]
         )
         if not self._config_file_is_written() or not self._config_file_content_matches(
             content=content
@@ -268,17 +272,19 @@ class PCFOperatorCharm(CharmBase):
             "GRPC_GO_LOG_SEVERITY_LEVEL": "info",
             "GRPC_TRACE": "all",
             "GRPC_VERBOSITY": "debug",
-            "POD_IP": str(self._get_pod_ip()),
+            "POD_IP": _get_pod_ip(),
             "MANAGED_BY_CONFIG_POD": "true",
         }
 
-    def _get_pod_ip(self) -> Optional[IPv4Address]:
-        """Get the IP address of the Kubernetes pod.
 
-        Returns:
-            Optional[IPv4Address]: The IP address of the Kubernetes pod.
-        """
-        return IPv4Address(check_output(["unit-get", "private-address"]).decode().strip())
+def _get_pod_ip() -> Optional[str]:
+    """Returns the pod IP using juju client.
+
+    Returns:
+        str: The pod IP.
+    """
+    ip_address = check_output(["unit-get", "private-address"])
+    return str(IPv4Address(ip_address.decode().strip())) if ip_address else None
 
 
 if __name__ == "__main__":  # pragma: no cover
