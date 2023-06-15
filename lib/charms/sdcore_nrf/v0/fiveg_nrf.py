@@ -110,7 +110,7 @@ LIBAPI = 0
 
 # Increment this PATCH version before using `charmcraft publish-lib` or reset
 # to 0 if you are raising the major API version
-LIBPATCH = 4
+LIBPATCH = 5
 
 PYDEPS = ["pydantic", "pytest-interface-tester"]
 
@@ -158,7 +158,7 @@ def data_matches_provider_schema(data: dict) -> bool:
         ProviderSchema(app=data)
         return True
     except ValidationError as e:
-        logger.error("Invalid data: %s", e)
+        logger.debug("Invalid data: %s", e)
         return False
 
 
@@ -239,7 +239,7 @@ class NRFRequires(Object):
             return None
         remote_app_relation_data = dict(relation.data[relation.app])
         if not data_matches_provider_schema(remote_app_relation_data):
-            logger.error("Invalid relation data: %s", remote_app_relation_data)
+            logger.debug("Invalid relation data: %s", remote_app_relation_data)
             return None
         return remote_app_relation_data
 
