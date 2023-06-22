@@ -11,6 +11,8 @@ containers:
     mounts:
       - storage: config
         location: /etc/pcf/
+      - storage: certs
+        location: /support/TLS
 
 resources:
   pcf-image:
@@ -22,12 +24,17 @@ storage:
   config:
     type: filesystem
     minimum-size: 1M
+  certs:
+    type: filesystem
+    minimum-size: 1M
 
 requires:
   database:
     interface: mongodb_client
   fiveg_nrf:
     interface: fiveg_nrf
+  certificates:
+    interface: tls-certificates
 
 assumes:
   - k8s-api

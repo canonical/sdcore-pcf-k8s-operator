@@ -25,6 +25,13 @@ juju integrate sdcore-pcf mongodb-k8s
 juju integrate sdcore-pcf:fiveg_nrf sdcore-nrf
 ```
 
+### Optional
+
+```bash
+juju deploy self-signed-certificates --channel=edge
+juju integrate sdcore-pcf:certificates self-signed-certificates:certificates
+```
+
 ## Image
 
 **pcf**: `omecproject/5gc-pcf:master-bcbdeb0`
