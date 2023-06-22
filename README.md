@@ -27,4 +27,4 @@ juju integrate sdcore-pcf:fiveg_nrf sdcore-nrf
 
 ## Image
 
-**pcf**: `omecproject/5gc-pcf:master-bcbdeb0`
+**pcf**: `ghcr.io/canonical/sdcore-pcf:1.3`

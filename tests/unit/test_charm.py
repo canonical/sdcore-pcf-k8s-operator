@@ -287,7 +287,7 @@ class TestCharm(unittest.TestCase):
                 "pcf": {
                     "override": "replace",
                     "startup": "enabled",
-                    "command": "./pcf --pcfcfg /etc/pcf/pcfcfg.yaml",
+                    "command": "/bin/pcf --pcfcfg /etc/pcf/pcfcfg.yaml",
                     "environment": {
                         "GRPC_GO_LOG_VERBOSITY_LEVEL": "99",
                         "GRPC_GO_LOG_SEVERITY_LEVEL": "info",

@@ -16,7 +16,7 @@ resources:
   pcf-image:
     type: oci-image
     description: OCI image for 5G pcf
-    upstream-source: omecproject/5gc-pcf:master-bcbdeb0
+    upstream-source: ghcr.io/canonical/sdcore-pcf:1.3
 
 storage:
   config:
