@@ -129,14 +129,22 @@ class PCFOperatorCharm(CharmBase):
         self.unit.status = BlockedStatus("Waiting for fiveg_nrf relation")
 
     def _on_certificates_relation_created(self, event: EventBase) -> None:
-        """Generates Private key."""
+        """Generates Private key.
+
+        Args:
+            event (EventBase): Juju event.
+        """
         if not self._container.can_connect():
             event.defer()
             return
         self._generate_private_key()
 
     def _on_certificates_relation_broken(self, event: EventBase) -> None:
-        """Deletes TLS related artifacts and reconfigures workload."""
+        """Deletes TLS related artifacts and reconfigures workload.
+
+        Args:
+            event (EventBase): Juju event.
+        """
         if not self._container.can_connect():
             event.defer()
             return
@@ -146,7 +154,11 @@ class PCFOperatorCharm(CharmBase):
         self._configure_sdcore_pcf(event)
 
     def _on_certificates_relation_joined(self, event: EventBase) -> None:
-        """Generates CSR and requests new certificate."""
+        """Generates CSR and requests new certificate.
+
+        Args:
+            event (EventBase): Juju event.
+        """
         if not self._container.can_connect():
             event.defer()
             return
@@ -156,7 +168,11 @@ class PCFOperatorCharm(CharmBase):
         self._request_new_certificate()
 
     def _on_certificate_available(self, event: CertificateAvailableEvent) -> None:
-        """Pushes certificate to workload and configures workload."""
+        """Pushes certificate to workload and configures workload.
+
+        Args:
+            event (CertificateAvailableEvent): Juju event.
+        """
         if not self._container.can_connect():
             event.defer()
             return
@@ -170,7 +186,11 @@ class PCFOperatorCharm(CharmBase):
         self._configure_sdcore_pcf(event)
 
     def _on_certificate_expiring(self, event: CertificateExpiringEvent) -> None:
-        """Requests new certificate."""
+        """Requests new certificate.
+
+        Args:
+            event (CertificateExpiringEvent): Juju event.
+        """
         if not self._container.can_connect():
             event.defer()
             return
