@@ -41,7 +41,8 @@ class TestCharm(unittest.TestCase):
         self.harness.set_leader(is_leader=True)
         self.harness.begin()
 
-    def _get_metadata(self) -> dict:
+    @staticmethod
+    def _get_metadata() -> dict:
         """Reads `metadata.yaml` and returns it as a dictionary.
 
         Returns:
@@ -51,8 +52,9 @@ class TestCharm(unittest.TestCase):
             data = yaml.safe_load(f)
         return data
 
-    def _read_file(self, path: str) -> str:
-        """Reads a file an returns as a string.
+    @staticmethod
+    def _read_file(path: str) -> str:
+        """Reads a file and returns as a string.
 
         Args:
             path (str): path to the file.
@@ -143,6 +145,33 @@ class TestCharm(unittest.TestCase):
             BlockedStatus("Waiting for `fiveg_nrf` relation to be created"),
         )
 
+    @patch("charm.check_output")
+    @patch("ops.model.Container.pull")
+    @patch("ops.model.Container.exists")
+    @patch("charms.sdcore_nrf.v0.fiveg_nrf.NRFRequires.nrf_url", new_callable=PropertyMock)
+    @patch("ops.Container.push")
+    @patch("ops.model.Container.restart")
+    def test_given_pcf_charm_in_active_state_when_nrf_relation_breaks_then_status_is_blocked(
+        self, _, __, patched_nrf_url, patch_exists, patch_pull, patch_check_output
+    ):
+        pod_ip = "1.1.1.1"
+        patch_check_output.return_value = pod_ip.encode()
+        patch_pull.return_value = StringIO("super different config file content")
+        self.harness.set_can_connect(container=self.container_name, val=True)
+        patched_nrf_url.return_value = VALID_NRF_URL
+        nrf_relation_id = self._create_nrf_relation()
+        self._database_is_available()
+        self.harness.charm._storage_is_attached = Mock(return_value=True)
+        patch_exists.return_value = [True, False]
+        self.harness.container_pebble_ready("pcf")
+
+        self.harness.remove_relation(nrf_relation_id)
+
+        self.assertEqual(
+            self.harness.model.unit.status,
+            BlockedStatus("Waiting for fiveg_nrf relation"),
+        )
+
     def test_given_container_can_connect_and_database_relation_is_not_available_when_configure_sdcore_pcf_then_status_is_waiting(  # noqa: E501
         self,
     ):
@@ -188,12 +217,12 @@ class TestCharm(unittest.TestCase):
         )
 
     @patch("charm.check_output")
-    @patch("ops.model.Container.pull")
     @patch("ops.model.Container.exists")
     @patch("ops.Container.push")
     @patch("charms.sdcore_nrf.v0.fiveg_nrf.NRFRequires.nrf_url", new_callable=PropertyMock)
+    @patch("ops.model.Container.pull")
     def test_given_config_file_is_not_written_when_configure_sdcore_pcf_is_called_then_config_file_is_written_with_expected_content(  # noqa: E501
-        self, patched_nrf_url, patch_push, patch_exists, patch_pull, patch_check_output
+        self, _, patched_nrf_url, patch_push, patch_exists, patch_check_output
     ):
         pod_ip = "1.1.1.1"
         patch_check_output.return_value = pod_ip.encode()
@@ -263,13 +292,13 @@ class TestCharm(unittest.TestCase):
             source=self._read_file("tests/unit/expected_pcfcfg.yaml"),
         )
 
-    @patch("ops.model.Container.pull")
     @patch("charms.sdcore_nrf.v0.fiveg_nrf.NRFRequires.nrf_url")
-    @patch("ops.model.Container.push")
     @patch("charm.check_output")
     @patch("ops.model.Container.exists")
+    @patch("ops.model.Container.push")
+    @patch("ops.model.Container.pull")
     def test_given_config_files_and_relations_are_created_when_configure_sdcore_pcf_is_called_then_expected_plan_is_applied(  # noqa: E501
-        self, patch_exists, patch_check_output, patch_push, patch_nrf_url, patch_pull
+        self, _, __, patch_exists, patch_check_output, patch_nrf_url
     ):
         pod_ip = "1.1.1.1"
         patch_check_output.return_value = pod_ip.encode()
@@ -301,20 +330,14 @@ class TestCharm(unittest.TestCase):
         updated_plan = self.harness.get_container_pebble_plan(self.container_name).to_dict()
         self.assertEqual(expected_plan, updated_plan)
 
-    @patch("ops.model.Container.restart")
     @patch("charm.check_output")
     @patch("ops.model.Container.pull")
     @patch("ops.model.Container.exists")
-    @patch("ops.Container.push")
     @patch("charms.sdcore_nrf.v0.fiveg_nrf.NRFRequires.nrf_url", new_callable=PropertyMock)
+    @patch("ops.Container.push")
+    @patch("ops.model.Container.restart")
     def test_given_config_file_is_written_when_configure_sdcore_pcf_is_called_then_status_is_active(  # noqa: E501
-        self,
-        patched_nrf_url,
-        patch_push,
-        patch_exists,
-        patch_pull,
-        patch_check_output,
-        patch_container_restart,
+        self, _, __, patched_nrf_url, patch_exists, patch_pull, patch_check_output
     ):
         pod_ip = "1.1.1.1"
         patch_check_output.return_value = pod_ip.encode()
@@ -337,10 +360,7 @@ class TestCharm(unittest.TestCase):
     @patch("ops.Container.push", new=Mock)
     @patch("charms.sdcore_nrf.v0.fiveg_nrf.NRFRequires.nrf_url", new_callable=PropertyMock)
     def test_given_ip_not_available_when_configure_then_status_is_waiting(
-        self,
-        patched_nrf_url,
-        patch_exists,
-        patch_check_output,
+        self, _, patch_exists, patch_check_output
     ):
         patch_check_output.return_value = "".encode()
         self._create_nrf_relation()
