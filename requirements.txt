@@ -1,7 +1,7 @@
-ops==2.4.1
 jinja2
 lightkube
 lightkube-models
+ops
 pydantic
 pytest-interface-tester
 jsonschema
