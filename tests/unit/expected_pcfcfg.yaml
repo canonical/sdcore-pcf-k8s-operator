@@ -9,7 +9,7 @@ configuration:
     bindingIPv4: 0.0.0.0
     port: 29507
     registerIPv4: 1.1.1.1
-    scheme: http
+    scheme: https
   serviceList:
   - serviceName: npcf-am-policy-control
   - serviceName: npcf-smpolicycontrol

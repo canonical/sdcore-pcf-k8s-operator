@@ -20,15 +20,11 @@ A Charmed Operator for SD-Core's Policy Control Function (PCF) component.
 juju deploy mongodb-k8s --channel 5/edge --trust
 juju deploy sdcore-nrf --channel edge --trust
 juju deploy sdcore-pcf --channel edge --trust 
+juju deploy self-signed-certificates --channel=beta
 
 juju integrate sdcore-pcf mongodb-k8s
+juju integrate sdcore-nrf self-signed-certificates
 juju integrate sdcore-pcf:fiveg_nrf sdcore-nrf
-```
-
-### Optional
-
-```bash
-juju deploy self-signed-certificates --channel=edge
 juju integrate sdcore-pcf:certificates self-signed-certificates:certificates
 ```
 

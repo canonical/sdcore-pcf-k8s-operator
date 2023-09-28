@@ -37,6 +37,7 @@ PCF_SBI_PORT = 29507
 DATABASE_NAME = "free5gc"
 DATABASE_RELATION_NAME = "database"
 NRF_RELATION_NAME = "fiveg_nrf"
+TLS_RELATION_NAME = "certificates"
 CERTS_DIR_PATH = "/support/TLS"  # Certificate paths are hardcoded in PCF code
 PRIVATE_KEY_NAME = "pcf.key"
 CSR_NAME = "pcf.csr"
@@ -94,7 +95,7 @@ class PCFOperatorCharm(CharmBase):
         if not self._container.can_connect():
             self.unit.status = WaitingStatus("Waiting for container to be ready")
             return
-        for relation in [DATABASE_RELATION_NAME, NRF_RELATION_NAME]:
+        for relation in [DATABASE_RELATION_NAME, NRF_RELATION_NAME, TLS_RELATION_NAME]:
             if not self._relation_created(relation):
                 self.unit.status = BlockedStatus(
                     f"Waiting for `{relation}` relation to be created"
@@ -114,6 +115,10 @@ class PCFOperatorCharm(CharmBase):
             return
         if not _get_pod_ip():
             self.unit.status = WaitingStatus("Waiting for pod IP address to be available")
+            event.defer()
+            return
+        if not self._certificate_is_stored():
+            self.unit.status = WaitingStatus("Waiting for certificates to be stored")
             event.defer()
             return
         restart = self._update_config_file()
@@ -151,7 +156,7 @@ class PCFOperatorCharm(CharmBase):
         self._delete_private_key()
         self._delete_csr()
         self._delete_certificate()
-        self._configure_sdcore_pcf(event)
+        self.unit.status = BlockedStatus("Waiting for certificates relation")
 
     def _on_certificates_relation_joined(self, event: EventBase) -> None:
         """Generates CSR and requests new certificate.
@@ -308,7 +313,7 @@ class PCFOperatorCharm(CharmBase):
             nrf_url=self._nrf_requires.nrf_url,
             pcf_sbi_port=PCF_SBI_PORT,
             pod_ip=_get_pod_ip(),  # type: ignore[arg-type]
-            scheme="https" if self._certificate_is_stored() else "http",
+            scheme="https",
         )
         if not self._config_file_is_written() or not self._config_file_content_matches(
             content=content
