@@ -4,6 +4,9 @@ display-name: SD-Core PCF
 summary: A Charmed Operator for SD-Core's PCF component.
 description: |
   A Charmed Operator for SD-Core's Policy Control Function (PCF) component.
+website: https://charmhub.io/sdcore-pcf
+source: https://github.com/canonical/sdcore-pcf-operator
+issues: https://github.com/canonical/sdcore-pcf-operator/issues
 
 containers:
   pcf:
