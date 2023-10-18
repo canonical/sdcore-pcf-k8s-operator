@@ -51,7 +51,13 @@ class PCFOperatorCharm(CharmBase):
     def __init__(self, *args):
         super().__init__(*args)
         if not self.unit.is_leader():
-            raise NotImplementedError("Scaling is not implemented for this charm")
+            # NOTE: In cases where leader status is lost before the charm is
+            # finished processing all teardown events, this prevents teardown
+            # event code from running. Luckily, for this charm, none of the
+            # teardown code is necessary to preform if we're removing the
+            # charm.
+            self.unit.status = BlockedStatus("Scaling is not implemented for this charm")
+            return
         self._container_name = self._service_name = "pcf"
         self._container = self.unit.get_container(self._container_name)
 
