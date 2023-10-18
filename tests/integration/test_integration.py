@@ -5,7 +5,6 @@
 
 import logging
 from pathlib import Path
-import ops
 
 import pytest
 import yaml
