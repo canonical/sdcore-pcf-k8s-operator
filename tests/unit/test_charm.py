@@ -82,7 +82,7 @@ class TestCharm(unittest.TestCase):
         )
         return relation_id
 
-    def _database_is_available(self) -> str:
+    def _create_database_relation_and_populate_data(self) -> int:
         database_url = "http://1.1.1.1"
         database_username = "banana"
         database_password = "pizza"
@@ -96,7 +96,7 @@ class TestCharm(unittest.TestCase):
                 "uris": "".join([database_url]),
             },
         )
-        return database_url
+        return database_relation_id
 
     def _create_nrf_relation(self) -> int:
         """Creates NRF relation.
@@ -175,7 +175,7 @@ class TestCharm(unittest.TestCase):
         self.harness.set_can_connect(container=self.container_name, val=True)
         patched_nrf_url.return_value = VALID_NRF_URL
         nrf_relation_id = self._create_nrf_relation()
-        self._database_is_available()
+        self._create_database_relation_and_populate_data()
         self.harness.charm._storage_is_attached = Mock(return_value=True)
         patch_exists.return_value = [True, False]
         self.harness.container_pebble_ready("pcf")
@@ -185,6 +185,33 @@ class TestCharm(unittest.TestCase):
         self.assertEqual(
             self.harness.model.unit.status,
             BlockedStatus("Waiting for fiveg_nrf relation"),
+        )
+
+    @patch("charm.check_output")
+    @patch("ops.model.Container.pull")
+    @patch("ops.model.Container.exists")
+    @patch("charms.sdcore_nrf.v0.fiveg_nrf.NRFRequires.nrf_url", new_callable=PropertyMock)
+    @patch("ops.Container.push")
+    @patch("ops.model.Container.restart")
+    def test_given_pcf_charm_in_active_state_when_database_relation_breaks_then_status_is_blocked(
+        self, _, __, patched_nrf_url, patch_exists, patch_pull, patch_check_output
+    ):
+        pod_ip = "1.1.1.1"
+        patch_check_output.return_value = pod_ip.encode()
+        patch_pull.return_value = StringIO("super different config file content")
+        self.harness.set_can_connect(container=self.container_name, val=True)
+        patched_nrf_url.return_value = VALID_NRF_URL
+        self._create_nrf_relation()
+        database_relation_id = self._create_database_relation_and_populate_data()
+        self.harness.charm._storage_is_attached = Mock(return_value=True)
+        patch_exists.return_value = [True, False]
+        self.harness.container_pebble_ready("pcf")
+
+        self.harness.remove_relation(database_relation_id)
+
+        self.assertEqual(
+            self.harness.model.unit.status,
+            BlockedStatus("Waiting for database relation"),
         )
 
     @patch("ops.model.Container.push")
@@ -211,7 +238,7 @@ class TestCharm(unittest.TestCase):
         patch_push,
     ):
         self.harness.set_can_connect(container=self.container_name, val=True)
-        self._database_is_available()
+        self._create_database_relation_and_populate_data()
         self._create_nrf_relation()
         self.harness.add_relation(
             relation_name=TLS_RELATION_NAME, remote_app="tls-certificates-operator"
@@ -233,7 +260,7 @@ class TestCharm(unittest.TestCase):
     ):
         self.harness.set_can_connect(container=self.container_name, val=True)
         patched_nrf_url.return_value = VALID_NRF_URL
-        self._database_is_available()
+        self._create_database_relation_and_populate_data()
         self._create_nrf_relation()
         self.harness.add_relation(
             relation_name=TLS_RELATION_NAME, remote_app="tls-certificates-operator"
@@ -257,7 +284,7 @@ class TestCharm(unittest.TestCase):
     ):
         self.harness.set_can_connect(container=self.container_name, val=True)
         patched_nrf_url.return_value = VALID_NRF_URL
-        self._database_is_available()
+        self._create_database_relation_and_populate_data()
         self._create_nrf_relation()
         self.harness.add_relation(
             relation_name=TLS_RELATION_NAME, remote_app="tls-certificates-operator"
@@ -284,7 +311,7 @@ class TestCharm(unittest.TestCase):
         patch_check_output.return_value = pod_ip.encode()
         self.harness.set_can_connect(container=self.container_name, val=True)
         patched_nrf_url.return_value = VALID_NRF_URL
-        self._database_is_available()
+        self._create_database_relation_and_populate_data()
         self._create_nrf_relation()
         self.harness.add_relation(
             relation_name=TLS_RELATION_NAME, remote_app="tls-certificates-operator"
@@ -316,7 +343,7 @@ class TestCharm(unittest.TestCase):
         ]
         patched_nrf_url.return_value = VALID_NRF_URL
         patch_exists.return_value = False
-        self._database_is_available()
+        self._create_database_relation_and_populate_data()
         self._create_nrf_relation()
         self.harness.add_relation(
             relation_name=TLS_RELATION_NAME, remote_app="tls-certificates-operator"
@@ -345,7 +372,7 @@ class TestCharm(unittest.TestCase):
         patch_pull.return_value = StringIO("super different config file content")
         patch_exists.side_effect = [True, False, False]
         patch_nrf_url.return_value = VALID_NRF_URL
-        self._database_is_available()
+        self._create_database_relation_and_populate_data()
         self._create_nrf_relation()
         self.harness.add_relation(
             relation_name=TLS_RELATION_NAME, remote_app="tls-certificates-operator"
@@ -372,7 +399,7 @@ class TestCharm(unittest.TestCase):
         patch_check_output.return_value = pod_ip.encode()
         patch_nrf_url.return_value = VALID_NRF_URL
         patch_exists.side_effect = [True, True, False]
-        self._database_is_available()
+        self._create_database_relation_and_populate_data()
         self._create_nrf_relation()
         self.harness.add_relation(
             relation_name=TLS_RELATION_NAME, remote_app="tls-certificates-operator"
@@ -417,7 +444,7 @@ class TestCharm(unittest.TestCase):
         self.harness.set_can_connect(container=self.container_name, val=True)
         patched_nrf_url.return_value = VALID_NRF_URL
         self._create_nrf_relation()
-        self._database_is_available()
+        self._create_database_relation_and_populate_data()
         self.harness.add_relation(
             relation_name=TLS_RELATION_NAME, remote_app="tls-certificates-operator"
         )
@@ -440,7 +467,7 @@ class TestCharm(unittest.TestCase):
     ):
         patch_check_output.return_value = "".encode()
         self._create_nrf_relation()
-        self._database_is_available()
+        self._create_database_relation_and_populate_data()
         self.harness.charm._storage_is_attached = Mock(return_value=True)
         patch_exists.return_value = [True, False]
         self.harness.add_relation(
