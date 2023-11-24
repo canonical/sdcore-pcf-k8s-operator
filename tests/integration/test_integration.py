@@ -98,6 +98,9 @@ async def test_relate_and_wait_for_active_status(ops_test: OpsTest, build_and_de
 @pytest.mark.abort_on_fail
 async def test_remove_nrf_and_wait_for_blocked_status(ops_test: OpsTest, build_and_deploy):
     await ops_test.model.remove_application(NRF_APP_NAME, block_until_done=True)  # type: ignore[union-attr]  # noqa: E501
+    # Running config-changed hook with empty config to check whether _nrf_relation_breaking
+    # attribute will not be set to its default value
+    await ops_test.model.applications[APPLICATION_NAME].set_config({})  # type: ignore[union-attr]
     await ops_test.model.wait_for_idle(apps=[APPLICATION_NAME], status="blocked", timeout=60)  # type: ignore[union-attr]  # noqa: E501
 
 
@@ -122,6 +125,9 @@ async def test_restore_nrf_and_wait_for_active_status(ops_test: OpsTest, build_a
 async def test_remove_tls_and_wait_for_blocked_status(ops_test: OpsTest, build_and_deploy):
     assert ops_test.model
     await ops_test.model.remove_application(TLS_PROVIDER_NAME, block_until_done=True)
+    # Running config-changed hook with empty config to check whether _tls_relation_breaking
+    # attribute will not be set to its default value
+    await ops_test.model.applications[APPLICATION_NAME].set_config({})
     await ops_test.model.wait_for_idle(apps=[APPLICATION_NAME], status="blocked", timeout=60)
 
 
@@ -145,6 +151,9 @@ async def test_restore_tls_and_wait_for_active_status(ops_test: OpsTest, build_a
 async def test_remove_database_and_wait_for_blocked_status(ops_test: OpsTest, build_and_deploy):
     assert ops_test.model
     await ops_test.model.remove_application(DATABASE_APP_NAME, block_until_done=True)
+    # Running config-changed hook with empty config to check whether _database_relation_breaking
+    # attribute will not be set to its default value
+    await ops_test.model.applications[APPLICATION_NAME].set_config({})
     await ops_test.model.wait_for_idle(apps=[APPLICATION_NAME], status="blocked", timeout=60)
 
 

@@ -23,10 +23,10 @@ from charms.tls_certificates_interface.v2.tls_certificates import (  # type: ign
 )
 from jinja2 import Environment, FileSystemLoader
 from lightkube.models.core_v1 import ServicePort
-from ops.charm import CharmBase
+from ops import ActiveStatus, BlockedStatus, StatusBase, WaitingStatus
+from ops.charm import CharmBase, CollectStatusEvent, RelationBrokenEvent
 from ops.framework import EventBase
 from ops.main import main
-from ops.model import ActiveStatus, BlockedStatus, WaitingStatus
 from ops.pebble import Layer
 
 logger = logging.getLogger(__name__)
@@ -50,8 +50,6 @@ class PCFOperatorCharm(CharmBase):
 
     def __init__(self, *args):
         super().__init__(*args)
-        if not self.unit.is_leader():
-            raise NotImplementedError("Scaling is not implemented for this charm")
         self._container_name = self._service_name = "pcf"
         self._container = self.unit.get_container(self._container_name)
 
@@ -64,6 +62,12 @@ class PCFOperatorCharm(CharmBase):
             ports=[ServicePort(name="sbi", port=PCF_SBI_PORT)],
         )
         self._certificates = TLSCertificatesRequiresV2(self, "certificates")
+        # Setting attributes to detect broken relations until
+        # https://github.com/canonical/operator/issues/940 is fixed
+        self._database_relation_breaking = False
+        self._nrf_relation_breaking = False
+        self._tls_relation_breaking = False
+        self.framework.observe(self.on.collect_unit_status, self._on_collect_unit_status)
         self.framework.observe(self.on.database_relation_joined, self._configure_sdcore_pcf)
         self.framework.observe(self.on.database_relation_broken, self._on_database_relation_broken)
         self.framework.observe(self._database.on.database_created, self._configure_sdcore_pcf)
@@ -87,60 +91,92 @@ class PCFOperatorCharm(CharmBase):
             self._certificates.on.certificate_expiring, self._on_certificate_expiring
         )
 
+    def _is_unit_in_non_active_status(self) -> Optional[StatusBase]:  # noqa: C901
+        """Evaluate and return the unit's current status, or None if it should be active.
+
+        Returns:
+            StatusBase: MaintenanceStatus/BlockedStatus/WaitingStatus
+            None: If none of the conditionals match
+
+        """
+        if not self.unit.is_leader():
+            # NOTE: In cases where leader status is lost before the charm is
+            # finished processing all teardown events, this prevents teardown
+            # event code from running. Luckily, for this charm, none of the
+            # teardown code is necessary to preform if we're removing the
+            # charm.
+            return BlockedStatus("Scaling is not implemented for this charm")
+
+        if not self._container.can_connect():
+            return WaitingStatus("Waiting for container to be ready")
+
+        if not self.model.get_relation(NRF_RELATION_NAME) or self._nrf_relation_breaking:
+            return BlockedStatus(f"Waiting for {NRF_RELATION_NAME} relation")
+
+        if not self.model.get_relation(DATABASE_RELATION_NAME) or self._database_relation_breaking:
+            return BlockedStatus(f"Waiting for {DATABASE_RELATION_NAME} relation")
+
+        if not self.model.get_relation(TLS_RELATION_NAME) or self._tls_relation_breaking:
+            return BlockedStatus(f"Waiting for {TLS_RELATION_NAME} relation")
+
+        if not self._database_is_available():
+            return WaitingStatus(
+                f"Waiting for `{DATABASE_RELATION_NAME}` relation to be available"
+            )
+
+        if not self._nrf_is_available():
+            return WaitingStatus("Waiting for NRF endpoint to be available")
+
+        if not self._storage_is_attached():
+            return WaitingStatus("Waiting for the storage to be attached")
+
+        if not _get_pod_ip():
+            return WaitingStatus("Waiting for pod IP address to be available")
+
+        if not self._certificate_is_stored():
+            return WaitingStatus("Waiting for certificates to be stored")
+
+        return None
+
+    def _on_collect_unit_status(self, event: CollectStatusEvent):
+        """Check the unit status and set to Unit when CollectStatusEvent is fired.
+
+        Args:
+            event: CollectStatusEvent
+        """
+        if status := self._is_unit_in_non_active_status():
+            event.add_status(status)
+        else:
+            event.add_status(ActiveStatus())
+
     def _configure_sdcore_pcf(self, event: EventBase):
         """Adds Pebble layer and manages Juju unit status.
 
         Args:
             event (EventBase): Juju event.
         """
-        if not self._container.can_connect():
-            self.unit.status = WaitingStatus("Waiting for container to be ready")
-            return
-        for relation in [DATABASE_RELATION_NAME, NRF_RELATION_NAME, TLS_RELATION_NAME]:
-            if not self._relation_created(relation):
-                self.unit.status = BlockedStatus(
-                    f"Waiting for `{relation}` relation to be created"
-                )
-                return
-        if not self._database_is_available():
-            self.unit.status = WaitingStatus(
-                f"Waiting for `{DATABASE_RELATION_NAME}` relation to be available"
-            )
-            return
-        if not self._nrf_is_available():
-            self.unit.status = WaitingStatus("Waiting for NRF endpoint to be available")
-            return
-        if not self._storage_is_attached():
-            self.unit.status = WaitingStatus("Waiting for the storage to be attached")
-            event.defer()
-            return
-        if not _get_pod_ip():
-            self.unit.status = WaitingStatus("Waiting for pod IP address to be available")
-            event.defer()
-            return
-        if not self._certificate_is_stored():
-            self.unit.status = WaitingStatus("Waiting for certificates to be stored")
+        if self._is_unit_in_non_active_status():
+            # Unit Status is in Maintanence or Blocked or Waiting status
             event.defer()
             return
         restart = self._update_config_file()
         self._configure_pebble(restart=restart)
-        self.unit.status = ActiveStatus()
 
-    def _on_nrf_broken(self, event: EventBase) -> None:
+    def _on_nrf_broken(self, event: RelationBrokenEvent) -> None:
         """Event handler for NRF relation broken.
 
         Args:
             event (NRFBrokenEvent): Juju event
         """
-        self.unit.status = BlockedStatus("Waiting for fiveg_nrf relation")
+        self._nrf_relation_breaking = True
 
-    def _on_database_relation_broken(self, event: EventBase) -> None:
+    def _on_database_relation_broken(self, event: RelationBrokenEvent) -> None:
         """Event handler for database relation broken.
 
         Args:
             event: Juju event
         """
-        self.unit.status = BlockedStatus("Waiting for database relation")
+        self._database_relation_breaking = True
 
     def _on_certificates_relation_created(self, event: EventBase) -> None:
         """Generates Private key.
@@ -153,7 +189,7 @@ class PCFOperatorCharm(CharmBase):
             return
         self._generate_private_key()
 
-    def _on_certificates_relation_broken(self, event: EventBase) -> None:
+    def _on_certificates_relation_broken(self, event: RelationBrokenEvent) -> None:
         """Deletes TLS related artifacts and reconfigures workload.
 
         Args:
@@ -165,7 +201,7 @@ class PCFOperatorCharm(CharmBase):
         self._delete_private_key()
         self._delete_csr()
         self._delete_certificate()
-        self.unit.status = BlockedStatus("Waiting for certificates relation")
+        self._tls_relation_breaking = True
 
     def _on_certificates_relation_joined(self, event: EventBase) -> None:
         """Generates CSR and requests new certificate.
@@ -491,7 +527,10 @@ def _get_pod_ip() -> Optional[str]:
     Returns:
         str: The pod IP.
     """
-    ip_address = check_output(["unit-get", "private-address"])
+    try:
+        ip_address = check_output(["unit-get", "private-address"])
+    except FileNotFoundError:
+        return None
     return str(IPv4Address(ip_address.decode().strip())) if ip_address else None
 
 
