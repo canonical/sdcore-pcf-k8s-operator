@@ -10,9 +10,6 @@ from subprocess import check_output
 from typing import Optional
 
 from charms.data_platform_libs.v0.data_interfaces import DatabaseRequires  # type: ignore[import]
-from charms.observability_libs.v1.kubernetes_service_patch import (  # type: ignore[import]  # noqa: E501
-    KubernetesServicePatch,
-)
 from charms.sdcore_nrf.v0.fiveg_nrf import NRFRequires  # type: ignore[import]
 from charms.tls_certificates_interface.v2.tls_certificates import (  # type: ignore[import]
     CertificateAvailableEvent,
@@ -22,7 +19,6 @@ from charms.tls_certificates_interface.v2.tls_certificates import (  # type: ign
     generate_private_key,
 )
 from jinja2 import Environment, FileSystemLoader
-from lightkube.models.core_v1 import ServicePort
 from ops.charm import CharmBase
 from ops.framework import EventBase
 from ops.main import main
@@ -59,10 +55,7 @@ class PCFOperatorCharm(CharmBase):
             self, relation_name="database", database_name=DATABASE_NAME
         )
         self._nrf_requires = NRFRequires(charm=self, relation_name=NRF_RELATION_NAME)
-        self._service_patcher = KubernetesServicePatch(
-            charm=self,
-            ports=[ServicePort(name="sbi", port=PCF_SBI_PORT)],
-        )
+        self.unit.set_ports(PCF_SBI_PORT)
         self._certificates = TLSCertificatesRequiresV2(self, "certificates")
         self.framework.observe(self.on.database_relation_joined, self._configure_sdcore_pcf)
         self.framework.observe(self.on.database_relation_broken, self._on_database_relation_broken)
