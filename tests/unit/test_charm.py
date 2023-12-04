@@ -24,10 +24,6 @@ EXPECTED_CONFIG_FILE_PATH = "tests/unit/expected_pcfcfg.yaml"
 
 
 class TestCharm(unittest.TestCase):
-    @patch(
-        "charm.KubernetesServicePatch",
-        lambda charm, ports: None,
-    )
     def setUp(self):
         self.maxDiff = None
         self.namespace = "whatever"
