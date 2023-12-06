@@ -14,7 +14,7 @@ from charm import (
     DATABASE_RELATION_NAME,
     NRF_RELATION_NAME,
     TLS_RELATION_NAME,
-    PCFOperatorCharm,
+    PCFK8sOperatorCharm,
 )
 
 logger = logging.getLogger(__name__)
@@ -30,7 +30,7 @@ class TestCharm(unittest.TestCase):
         self.default_database_application_name = "mongodb-k8s"
         self.metadata = self._get_metadata()
         self.container_name = list(self.metadata["containers"].keys())[0]
-        self.harness = testing.Harness(PCFOperatorCharm)
+        self.harness = testing.Harness(PCFK8sOperatorCharm)
         self.harness.set_model_name(name=self.namespace)
         self.addCleanup(self.harness.cleanup)
         self.harness.set_leader(is_leader=True)

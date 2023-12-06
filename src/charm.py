@@ -2,7 +2,7 @@
 # Copyright 2023 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-"""Charmed operator for the SD-Core's PCF service."""
+"""Charmed K8s operator for the SD-Core's PCF service."""
 
 import logging
 from ipaddress import IPv4Address
@@ -41,8 +41,8 @@ CERTIFICATE_NAME = "pcf.pem"
 CERTIFICATE_COMMON_NAME = "pcf.sdcore"
 
 
-class PCFOperatorCharm(CharmBase):
-    """Main class to describe Juju event handling for the 5G PCF operator."""
+class PCFK8sOperatorCharm(CharmBase):
+    """Main class to describe Juju event handling for the 5G PCF K8s operator."""
 
     def __init__(self, *args):
         super().__init__(*args)
@@ -489,4 +489,4 @@ def _get_pod_ip() -> Optional[str]:
 
 
 if __name__ == "__main__":  # pragma: no cover
-    main(PCFOperatorCharm)
+    main(PCFK8sOperatorCharm)
