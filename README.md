@@ -1,4 +1,4 @@
-# SD-Core PCF Operator for K8s
+# SD-Core PCF Operator (k8s)
 [![CharmHub Badge](https://charmhub.io/sdcore-pcf-k8s/badge.svg)](https://charmhub.io/sdcore-pcf-k8s)
 
 A Charmed Operator for SD-Core's Policy Control Function (PCF) component for K8s. 
