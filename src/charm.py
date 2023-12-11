@@ -2,7 +2,7 @@
 # Copyright 2023 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-"""Charmed operator for the SD-Core's PCF service."""
+"""Charmed operator for the SD-Core's PCF service for K8s."""
 
 import logging
 from ipaddress import IPv4Address
@@ -10,7 +10,7 @@ from subprocess import check_output
 from typing import Optional
 
 from charms.data_platform_libs.v0.data_interfaces import DatabaseRequires  # type: ignore[import]
-from charms.sdcore_nrf.v0.fiveg_nrf import NRFRequires  # type: ignore[import]
+from charms.sdcore_nrf_k8s.v0.fiveg_nrf import NRFRequires  # type: ignore[import]
 from charms.tls_certificates_interface.v2.tls_certificates import (  # type: ignore[import]
     CertificateAvailableEvent,
     CertificateExpiringEvent,
@@ -42,7 +42,7 @@ CERTIFICATE_COMMON_NAME = "pcf.sdcore"
 
 
 class PCFOperatorCharm(CharmBase):
-    """Main class to describe Juju event handling for the 5G PCF operator."""
+    """Main class to describe Juju event handling for the 5G PCF operator for K8s."""
 
     def __init__(self, *args):
         super().__init__(*args)
