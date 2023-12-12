@@ -20,3 +20,4 @@ juju integrate sdcore-pcf-k8s:certificates self-signed-certificates:certificates
 ## Image
 
 **pcf**: `ghcr.io/canonical/sdcore-pcf:1.3`
+
