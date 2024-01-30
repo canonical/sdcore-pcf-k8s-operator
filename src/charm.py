@@ -11,10 +11,10 @@ from typing import Optional
 
 from charms.data_platform_libs.v0.data_interfaces import DatabaseRequires  # type: ignore[import]
 from charms.sdcore_nrf_k8s.v0.fiveg_nrf import NRFRequires  # type: ignore[import]
-from charms.tls_certificates_interface.v2.tls_certificates import (  # type: ignore[import]
+from charms.tls_certificates_interface.v3.tls_certificates import (  # type: ignore[import]
     CertificateAvailableEvent,
     CertificateExpiringEvent,
-    TLSCertificatesRequiresV2,
+    TLSCertificatesRequiresV3,
     generate_csr,
     generate_private_key,
 )
@@ -56,7 +56,7 @@ class PCFOperatorCharm(CharmBase):
         )
         self._nrf_requires = NRFRequires(charm=self, relation_name=NRF_RELATION_NAME)
         self.unit.set_ports(PCF_SBI_PORT)
-        self._certificates = TLSCertificatesRequiresV2(self, "certificates")
+        self._certificates = TLSCertificatesRequiresV3(self, "certificates")
         self.framework.observe(self.on.database_relation_joined, self._configure_sdcore_pcf)
         self.framework.observe(self.on.database_relation_broken, self._on_database_relation_broken)
         self.framework.observe(self._database.on.database_created, self._configure_sdcore_pcf)
