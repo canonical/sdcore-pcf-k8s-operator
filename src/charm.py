@@ -12,7 +12,6 @@ from typing import Optional
 from charms.data_platform_libs.v0.data_interfaces import DatabaseRequires  # type: ignore[import]
 from charms.sdcore_nrf_k8s.v0.fiveg_nrf import NRFRequires  # type: ignore[import]
 from charms.tls_certificates_interface.v3.tls_certificates import (  # type: ignore[import]
-    CertificateAvailableEvent,
     CertificateExpiringEvent,
     TLSCertificatesRequiresV3,
     generate_csr,
@@ -64,59 +63,64 @@ class PCFOperatorCharm(CharmBase):
         self.framework.observe(self._nrf_requires.on.nrf_available, self._configure_sdcore_pcf)
         self.framework.observe(self._nrf_requires.on.nrf_broken, self._on_nrf_broken)
         self.framework.observe(self.on.pcf_pebble_ready, self._configure_sdcore_pcf)
+        self.framework.observe(self.on.certificates_relation_joined, self._configure_sdcore_pcf)
         self.framework.observe(
-            self.on.certificates_relation_created, self._on_certificates_relation_created
-        )
-        self.framework.observe(
-            self.on.certificates_relation_joined, self._on_certificates_relation_joined
+            self._certificates.on.certificate_available, self._configure_sdcore_pcf
         )
         self.framework.observe(
             self.on.certificates_relation_broken, self._on_certificates_relation_broken
         )
         self.framework.observe(
-            self._certificates.on.certificate_available, self._on_certificate_available
-        )
-        self.framework.observe(
             self._certificates.on.certificate_expiring, self._on_certificate_expiring
         )
 
-    def _configure_sdcore_pcf(self, event: EventBase):
-        """Adds Pebble layer and manages Juju unit status.
-
-        Args:
-            event (EventBase): Juju event.
-        """
+    def ready_to_configure(self):
+        """Returns whether all preconditions are met to proceed with configuration."""
         if not self._container.can_connect():
             self.unit.status = WaitingStatus("Waiting for container to be ready")
-            return
+            return False
         for relation in [DATABASE_RELATION_NAME, NRF_RELATION_NAME, TLS_RELATION_NAME]:
             if not self._relation_created(relation):
                 self.unit.status = BlockedStatus(
                     f"Waiting for `{relation}` relation to be created"
                 )
-                return
+                return False
         if not self._database_is_available():
             self.unit.status = WaitingStatus(
                 f"Waiting for `{DATABASE_RELATION_NAME}` relation to be available"
             )
-            return
+            return False
         if not self._nrf_is_available():
             self.unit.status = WaitingStatus("Waiting for NRF endpoint to be available")
-            return
+            return False
         if not self._storage_is_attached():
             self.unit.status = WaitingStatus("Waiting for the storage to be attached")
-            event.defer()
-            return
+            return False
         if not _get_pod_ip():
             self.unit.status = WaitingStatus("Waiting for pod IP address to be available")
-            event.defer()
+            return False
+        return True
+
+    def _configure_sdcore_pcf(self, event: EventBase) -> None:
+        """Adds Pebble layer and manages Juju unit status.
+
+        Args:
+            event (EventBase): Juju event.
+        """
+        if not self.ready_to_configure():
             return
-        if not self._certificate_is_stored():
+        if not self._private_key_is_stored():
+            self._generate_private_key()
+        if not self._csr_is_stored():
+            self._request_new_certificate()
+
+        provider_certificate = self._get_current_provider_certificate()
+        if not provider_certificate:
             self.unit.status = WaitingStatus("Waiting for certificates to be stored")
-            event.defer()
             return
-        restart = self._update_config_file()
-        self._configure_pebble(restart=restart)
+        certificate_changed = self._update_certificate(provider_certificate=provider_certificate)
+        config_file_changed = self._update_config_file()
+        self._configure_pebble(restart=(config_file_changed or certificate_changed))
         self.unit.status = ActiveStatus()
 
     def _on_nrf_broken(self, event: EventBase) -> None:
@@ -135,17 +139,6 @@ class PCFOperatorCharm(CharmBase):
         """
         self.unit.status = BlockedStatus("Waiting for database relation")
 
-    def _on_certificates_relation_created(self, event: EventBase) -> None:
-        """Generates Private key.
-
-        Args:
-            event (EventBase): Juju event.
-        """
-        if not self._container.can_connect():
-            event.defer()
-            return
-        self._generate_private_key()
-
     def _on_certificates_relation_broken(self, event: EventBase) -> None:
         """Deletes TLS related artifacts and reconfigures workload.
 
@@ -160,40 +153,30 @@ class PCFOperatorCharm(CharmBase):
         self._delete_certificate()
         self.unit.status = BlockedStatus("Waiting for certificates relation")
 
-    def _on_certificates_relation_joined(self, event: EventBase) -> None:
-        """Generates CSR and requests new certificate.
+    def _get_current_provider_certificate(self) -> str | None:
+        """Compares the current certificate request to what is in the interface.
 
-        Args:
-            event (EventBase): Juju event.
+        Returns the current valid provider certificate if present
         """
-        if not self._container.can_connect():
-            event.defer()
-            return
-        if not self._private_key_is_stored():
-            event.defer()
-            return
-        if self._certificate_is_stored():
-            return
+        csr = self._get_stored_csr()
+        for provider_certificate in self._certificates.get_assigned_certificates():
+            if provider_certificate.csr == csr:
+                return provider_certificate.certificate
+        return None
 
-        self._request_new_certificate()
+    def _update_certificate(self, provider_certificate) -> bool:
+        """Compares the provided certificate to what is stored.
 
-    def _on_certificate_available(self, event: CertificateAvailableEvent) -> None:
-        """Pushes certificate to workload and configures workload.
-
-        Args:
-            event (CertificateAvailableEvent): Juju event.
+        Returns True if the certificate was updated
         """
-        if not self._container.can_connect():
-            event.defer()
-            return
-        if not self._csr_is_stored():
-            logger.warning("Certificate is available but no CSR is stored")
-            return
-        if event.certificate_signing_request != self._get_stored_csr():
-            logger.debug("Stored CSR doesn't match one in certificate available event")
-            return
-        self._store_certificate(event.certificate)
-        self._configure_sdcore_pcf(event)
+        existing_certificate = (
+            self._get_stored_certificate() if self._certificate_is_stored() else ""
+        )
+
+        if existing_certificate != provider_certificate:
+            self._store_certificate(certificate=provider_certificate)
+            return True
+        return False
 
     def _on_certificate_expiring(self, event: CertificateExpiringEvent) -> None:
         """Requests new certificate.

@@ -6,6 +6,9 @@ import unittest
 from unittest.mock import Mock, PropertyMock, patch
 
 import yaml
+from charms.tls_certificates_interface.v3.tls_certificates import (  # type: ignore[import]
+    ProviderCertificate,
+)
 from ops import testing
 from ops.model import ActiveStatus, BlockedStatus, WaitingStatus
 
@@ -19,8 +22,14 @@ from charm import (
 
 logger = logging.getLogger(__name__)
 
+POD_IP = b"1.1.1.1"
 VALID_NRF_URL = "https://nrf:443"
 EXPECTED_CONFIG_FILE_PATH = "tests/unit/expected_pcfcfg.yaml"
+CERTIFICATES_LIB = (
+    "charms.tls_certificates_interface.v3.tls_certificates.TLSCertificatesRequiresV3"
+)
+CERTIFICATE = "whatever certificate content"
+CSR = "whatever CSR content"
 
 
 class TestCharm(unittest.TestCase):
@@ -104,6 +113,20 @@ class TestCharm(unittest.TestCase):
         self.harness.add_relation_unit(relation_id=relation_id, remote_unit_name="nrf-operator/0")
         return relation_id
 
+    def _create_certificates_relation(self) -> int:
+        """Creates certificates relation.
+
+        Returns:
+            int: relation id.
+        """
+        relation_id = self.harness.add_relation(
+            relation_name=TLS_RELATION_NAME, remote_app="tls-certificates-operator"
+        )
+        self.harness.add_relation_unit(
+            relation_id=relation_id, remote_unit_name="tls-certificates-operator/0"
+        )
+        return relation_id
+
     def test_given_container_cant_connect_when_configure_sdcore_pcf_then_status_is_waiting(  # noqa: E501
         self,
     ):
@@ -162,11 +185,9 @@ class TestCharm(unittest.TestCase):
     ):
         self.harness.add_storage(storage_name="config", attach=True)
         self.harness.add_storage(storage_name="certs", attach=True)
-        root = self.harness.get_filesystem_root("pcf")
-        certificate = "whatever certificate content"
-        (root / "support/TLS/pcf.pem").write_text(certificate)
-        pod_ip = "1.1.1.1"
-        patch_check_output.return_value = pod_ip.encode()
+        root = self.harness.get_filesystem_root(self.container_name)
+        (root / "support/TLS/pcf.pem").write_text(CERTIFICATE)
+        patch_check_output.return_value = POD_IP
         self.harness.set_can_connect(container=self.container_name, val=True)
         patched_nrf_url.return_value = VALID_NRF_URL
         nrf_relation_id = self._create_nrf_relation()
@@ -192,10 +213,8 @@ class TestCharm(unittest.TestCase):
         self.harness.add_storage(storage_name="config", attach=True)
         self.harness.add_storage(storage_name="certs", attach=True)
         root = self.harness.get_filesystem_root(self.container_name)
-        certificate = "whatever certificate content"
-        (root / "support/TLS/pcf.pem").write_text(certificate)
-        pod_ip = "1.1.1.1"
-        patch_check_output.return_value = pod_ip.encode()
+        (root / "support/TLS/pcf.pem").write_text(CERTIFICATE)
+        patch_check_output.return_value = POD_IP
         self.harness.set_can_connect(container=self.container_name, val=True)
         patched_nrf_url.return_value = VALID_NRF_URL
         self._create_nrf_relation()
@@ -291,25 +310,29 @@ class TestCharm(unittest.TestCase):
             self.harness.model.unit.status, WaitingStatus("Waiting for certificates to be stored")
         )
 
+    @patch(f"{CERTIFICATES_LIB}.get_assigned_certificates")
     @patch("charm.check_output")
     @patch("charms.sdcore_nrf_k8s.v0.fiveg_nrf.NRFRequires.nrf_url", new_callable=PropertyMock)
     def test_given_config_file_is_not_written_when_configure_sdcore_pcf_is_called_then_config_file_is_written_with_expected_content(  # noqa: E501
-        self, patched_nrf_url, patch_check_output
+        self, patched_nrf_url, patch_check_output, patch_get_assigned_certificates
     ):
         self.harness.add_storage(storage_name="certs", attach=True)
         self.harness.add_storage(storage_name="config", attach=True)
         root = self.harness.get_filesystem_root(self.container_name)
-        certificate = "whatever certificate content"
-        (root / "support/TLS/pcf.pem").write_text(certificate)
-        pod_ip = "1.1.1.1"
-        patch_check_output.return_value = pod_ip.encode()
+        (root / "support/TLS/pcf.pem").write_text(CERTIFICATE)
+        (root / "support/TLS/pcf.csr").write_text(CSR)
+        patch_check_output.return_value = POD_IP
         self.harness.set_can_connect(container=self.container_name, val=True)
         patched_nrf_url.return_value = VALID_NRF_URL
         self._create_database_relation_and_populate_data()
         self._create_nrf_relation()
-        self.harness.add_relation(
-            relation_name=TLS_RELATION_NAME, remote_app="tls-certificates-operator"
-        )
+        self._create_certificates_relation()
+
+        provider_certificate = Mock(ProviderCertificate)
+        provider_certificate.certificate = CERTIFICATE
+        provider_certificate.csr = CSR
+        patch_get_assigned_certificates.return_value = [provider_certificate]
+
         expected_config_file_content = self._read_file(EXPECTED_CONFIG_FILE_PATH)
 
         self.harness.charm._configure_sdcore_pcf(event=Mock())
@@ -327,14 +350,12 @@ class TestCharm(unittest.TestCase):
         self.harness.add_storage(storage_name="certs", attach=True)
         self.harness.add_storage(storage_name="config", attach=True)
         root = self.harness.get_filesystem_root(self.container_name)
-        certificate = "whatever certificate content"
-        (root / "support/TLS/pcf.pem").write_text(certificate)
+        (root / "support/TLS/pcf.pem").write_text(CERTIFICATE)
         (root / f"etc/pcf/{CONFIG_FILE_NAME}").write_text(
             self._read_file("tests/unit/expected_pcfcfg.yaml").strip()
         )
         config_modification_time = (root / f"etc/pcf/{CONFIG_FILE_NAME}").stat().st_mtime
-        pod_ip = "1.1.1.1"
-        patch_check_output.return_value = pod_ip.encode()
+        patch_check_output.return_value = POD_IP
         patched_nrf_url.return_value = VALID_NRF_URL
         self._create_database_relation_and_populate_data()
         self._create_nrf_relation()
@@ -343,63 +364,69 @@ class TestCharm(unittest.TestCase):
         )
         self.harness.charm._certificate_is_stored = Mock(return_value=True)
 
-        self.harness.container_pebble_ready("pcf")
+        self.harness.container_pebble_ready(self.container_name)
 
         self.assertEqual(
             (root / f"etc/pcf/{CONFIG_FILE_NAME}").stat().st_mtime, config_modification_time
         )
 
+    @patch(f"{CERTIFICATES_LIB}.get_assigned_certificates")
     @patch("charms.sdcore_nrf_k8s.v0.fiveg_nrf.NRFRequires.nrf_url", new_callable=PropertyMock)
     @patch("charm.check_output")
     def test_given_config_file_exists_and_is_changed_when_configure_pcf_then_config_file_is_updated(  # noqa: E501
         self,
         patch_check_output,
         patch_nrf_url,
+        patch_get_assigned_certificates,
     ):
         self.harness.add_storage(storage_name="certs", attach=True)
         self.harness.add_storage(storage_name="config", attach=True)
         root = self.harness.get_filesystem_root(self.container_name)
-        certificate = "whatever certificate content"
-        (root / "support/TLS/pcf.pem").write_text(certificate)
+        (root / "support/TLS/pcf.csr").write_text(CSR)
+        (root / "support/TLS/pcf.pem").write_text(CERTIFICATE)
         (root / f"etc/pcf/{CONFIG_FILE_NAME}").write_text("super different config file content")
-        pod_ip = "1.1.1.1"
-        patch_check_output.return_value = pod_ip.encode()
+        patch_check_output.return_value = POD_IP
         patch_nrf_url.return_value = VALID_NRF_URL
         self._create_database_relation_and_populate_data()
         self._create_nrf_relation()
-        self.harness.add_relation(
-            relation_name=TLS_RELATION_NAME, remote_app="tls-certificates-operator"
-        )
-        self.harness.set_can_connect(container="pcf", val=True)
-
-        self.harness.charm._configure_sdcore_pcf(event=Mock())
+        self._create_certificates_relation()
+        provider_certificate = Mock(ProviderCertificate)
+        provider_certificate.certificate = CERTIFICATE
+        provider_certificate.csr = CSR
+        patch_get_assigned_certificates.return_value = [provider_certificate]
+        self.harness.set_can_connect(container=self.container_name, val=True)
+        self.harness.container_pebble_ready(self.container_name)
 
         expected_content = self._read_file("tests/unit/expected_pcfcfg.yaml")
         self.assertEqual(
             (root / f"etc/pcf/{CONFIG_FILE_NAME}").read_text(), expected_content.strip()
         )
 
+    @patch(f"{CERTIFICATES_LIB}.get_assigned_certificates")
     @patch("charms.sdcore_nrf_k8s.v0.fiveg_nrf.NRFRequires.nrf_url")
     @patch("charm.check_output")
     def test_given_config_files_and_relations_are_created_when_configure_sdcore_pcf_is_called_then_expected_plan_is_applied(  # noqa: E501
-        self, patch_check_output, patch_nrf_url
+        self, patch_check_output, patch_nrf_url, patch_get_assigned_certificates
     ):
         self.harness.add_storage(storage_name="certs", attach=True)
         self.harness.add_storage(storage_name="config", attach=True)
         root = self.harness.get_filesystem_root(self.container_name)
-        certificate = "whatever certificate content"
-        (root / "support/TLS/pcf.pem").write_text(certificate)
-        pod_ip = "1.1.1.1"
-        patch_check_output.return_value = pod_ip.encode()
+        (root / "support/TLS/pcf.pem").write_text(CERTIFICATE)
+        (root / "support/TLS/pcf.csr").write_text(CSR)
+        patch_check_output.return_value = POD_IP
         patch_nrf_url.return_value = VALID_NRF_URL
         self._create_database_relation_and_populate_data()
         self._create_nrf_relation()
-        self.harness.add_relation(
-            relation_name=TLS_RELATION_NAME, remote_app="tls-certificates-operator"
-        )
+        self._create_certificates_relation()
+
+        provider_certificate = Mock(ProviderCertificate)
+        provider_certificate.certificate = CERTIFICATE
+        provider_certificate.csr = CSR
+        patch_get_assigned_certificates.return_value = [provider_certificate]
+
         self.harness.set_can_connect(container=self.container_name, val=True)
 
-        self.harness.charm._configure_sdcore_pcf(event=Mock())
+        self.harness.container_pebble_ready(self.container_name)
 
         expected_plan = {
             "services": {
@@ -412,7 +439,7 @@ class TestCharm(unittest.TestCase):
                         "GRPC_GO_LOG_SEVERITY_LEVEL": "info",
                         "GRPC_TRACE": "all",
                         "GRPC_VERBOSITY": "debug",
-                        "POD_IP": pod_ip,
+                        "POD_IP": POD_IP.decode(),
                         "MANAGED_BY_CONFIG_POD": "true",
                     },
                 }
@@ -421,17 +448,18 @@ class TestCharm(unittest.TestCase):
         updated_plan = self.harness.get_container_pebble_plan(self.container_name).to_dict()
         self.assertEqual(expected_plan, updated_plan)
 
+    @patch(f"{CERTIFICATES_LIB}.get_assigned_certificates")
     @patch("charm.check_output")
     @patch("charms.sdcore_nrf_k8s.v0.fiveg_nrf.NRFRequires.nrf_url", new_callable=PropertyMock)
     @patch("ops.model.Container.restart")
     def test_given_config_file_is_written_when_configure_sdcore_pcf_is_called_then_status_is_active(  # noqa: E501
-        self, _, patched_nrf_url, patch_check_output
+        self, _, patched_nrf_url, patch_check_output, patch_get_assigned_certificates
     ):
         self.harness.add_storage(storage_name="certs", attach=True)
         self.harness.add_storage(storage_name="config", attach=True)
         root = self.harness.get_filesystem_root(self.container_name)
-        certificate = "whatever certificate content"
-        (root / "support/TLS/pcf.pem").write_text(certificate)
+        (root / "support/TLS/pcf.pem").write_text(CERTIFICATE)
+        (root / "support/TLS/pcf.csr").write_text(CSR)
         (root / f"etc/pcf/{CONFIG_FILE_NAME}").write_text("super different config file content")
         pod_ip = "1.1.1.1"
         patch_check_output.return_value = pod_ip.encode()
@@ -439,11 +467,14 @@ class TestCharm(unittest.TestCase):
         patched_nrf_url.return_value = VALID_NRF_URL
         self._create_nrf_relation()
         self._create_database_relation_and_populate_data()
-        self.harness.add_relation(
-            relation_name=TLS_RELATION_NAME, remote_app="tls-certificates-operator"
-        )
+        self._create_certificates_relation()
 
-        self.harness.charm._configure_sdcore_pcf(event=Mock())
+        provider_certificate = Mock(ProviderCertificate)
+        provider_certificate.certificate = CERTIFICATE
+        provider_certificate.csr = CSR
+        patch_get_assigned_certificates.return_value = [provider_certificate]
+
+        self.harness.container_pebble_ready(self.container_name)
 
         self.assertEqual(self.harness.model.unit.status, ActiveStatus())
 
@@ -456,8 +487,7 @@ class TestCharm(unittest.TestCase):
         self.harness.add_storage(storage_name="certs", attach=True)
         self.harness.add_storage(storage_name="config", attach=True)
         root = self.harness.get_filesystem_root(self.container_name)
-        certificate = "whatever certificate content"
-        (root / "support/TLS/pcf.pem").write_text(certificate)
+        (root / "support/TLS/pcf.pem").write_text(CERTIFICATE)
         patch_check_output.return_value = "".encode()
         self._create_nrf_relation()
         self._create_database_relation_and_populate_data()
@@ -471,9 +501,16 @@ class TestCharm(unittest.TestCase):
             WaitingStatus("Waiting for pod IP address to be available"),
         )
 
+    @patch("charms.sdcore_nrf_k8s.v0.fiveg_nrf.NRFRequires.nrf_url", new_callable=PropertyMock)
+    @patch("charm.generate_csr")
+    @patch("charm.check_output")
     @patch("charm.generate_private_key")
     def test_given_can_connect_when_on_certificates_relation_created_then_private_key_is_generated(
-        self, patch_generate_private_key
+        self,
+        patch_generate_private_key,
+        patch_check_output,
+        patch_generate_csr,
+        patch_nrf_url,
     ):
         self.harness.add_storage(storage_name="certs", attach=True)
         self.harness.add_storage(storage_name="config", attach=True)
@@ -481,8 +518,13 @@ class TestCharm(unittest.TestCase):
         private_key = b"whatever key content"
         self.harness.set_can_connect(container=self.container_name, val=True)
         patch_generate_private_key.return_value = private_key
-
-        self.harness.charm._on_certificates_relation_created(event=Mock)
+        patch_check_output.return_value = b"1.1.1.1"
+        patch_nrf_url.return_value = VALID_NRF_URL
+        csr = b"whatever csr content"
+        patch_generate_csr.return_value = csr
+        self._create_database_relation_and_populate_data()
+        self._create_nrf_relation()
+        self._create_certificates_relation()
 
         self.assertEqual((root / "support/TLS/pcf.key").read_text(), private_key.decode())
 
@@ -493,11 +535,9 @@ class TestCharm(unittest.TestCase):
         self.harness.set_can_connect(container=self.container_name, val=True)
         root = self.harness.get_filesystem_root(self.container_name)
         private_key = "whatever key content"
-        csr = "Whatever CSR content"
-        certificate = "Whatever certificate content"
         (root / "support/TLS/pcf.key").write_text(private_key)
-        (root / "support/TLS/pcf.csr").write_text(csr)
-        (root / "support/TLS/pcf.pem").write_text(certificate)
+        (root / "support/TLS/pcf.csr").write_text(CSR)
+        (root / "support/TLS/pcf.pem").write_text(CERTIFICATE)
 
         self.harness.charm._on_certificates_relation_broken(event=Mock)
 
@@ -506,106 +546,133 @@ class TestCharm(unittest.TestCase):
             (root / "support/TLS/pcf.key").read_text()
             (root / "support/TLS/pcf.csr").read_text()
 
-    @patch(
-        "charms.tls_certificates_interface.v3.tls_certificates.TLSCertificatesRequiresV3.request_certificate_creation",  # noqa: E501
-        new=Mock,
-    )
+    @patch("charms.sdcore_nrf_k8s.v0.fiveg_nrf.NRFRequires.nrf_url", new_callable=PropertyMock)
     @patch("charm.generate_csr")
+    @patch("charm.check_output")
     def test_given_private_key_exists_when_on_certificates_relation_joined_then_csr_is_generated(
-        self, patch_generate_csr
+        self, patch_check_output, patch_generate_csr, patched_nrf_url
     ):
         self.harness.add_storage(storage_name="certs", attach=True)
+        self.harness.add_storage(storage_name="config", attach=True)
         root = self.harness.get_filesystem_root(self.container_name)
         private_key = "whatever key content"
         (root / "support/TLS/pcf.key").write_text(private_key)
         csr = b"whatever csr content"
         patch_generate_csr.return_value = csr
+        patch_check_output.return_value = b"1.1.1.1"
+        patched_nrf_url.return_value = VALID_NRF_URL
         self.harness.set_can_connect(container=self.container_name, val=True)
-
-        self.harness.charm._on_certificates_relation_joined(event=Mock)
+        self._create_database_relation_and_populate_data()
+        self._create_nrf_relation()
+        self._create_certificates_relation()
 
         self.assertEqual((root / "support/TLS/pcf.csr").read_text(), csr.decode())
 
     @patch(
-        "charms.tls_certificates_interface.v3.tls_certificates.TLSCertificatesRequiresV3.request_certificate_creation",  # noqa: E501
+        f"{CERTIFICATES_LIB}.request_certificate_creation",  # noqa: E501
     )
+    @patch("charms.sdcore_nrf_k8s.v0.fiveg_nrf.NRFRequires.nrf_url", new_callable=PropertyMock)
     @patch("charm.generate_csr")
+    @patch("charm.check_output")
     def test_given_private_key_exists_and_cert_not_yet_requested_when_on_certificates_relation_joined_then_cert_is_requested(  # noqa: E501
         self,
+        patch_check_output,
         patch_generate_csr,
+        patched_nrf_url,
         patch_request_certificate_creation,
     ):
         self.harness.add_storage(storage_name="certs", attach=True)
+        self.harness.add_storage(storage_name="config", attach=True)
         root = self.harness.get_filesystem_root(self.container_name)
         private_key = "whatever key content"
         (root / "support/TLS/pcf.key").write_text(private_key)
         csr = b"whatever csr content"
         patch_generate_csr.return_value = csr
-        self.harness.set_can_connect(container="pcf", val=True)
+        patch_check_output.return_value = b"1.1.1.1"
+        patched_nrf_url.return_value = VALID_NRF_URL
+        self.harness.set_can_connect(container=self.container_name, val=True)
 
-        self.harness.charm._on_certificates_relation_joined(event=Mock)
+        self._create_database_relation_and_populate_data()
+        self._create_nrf_relation()
+        self._create_certificates_relation()
 
         patch_request_certificate_creation.assert_called_with(certificate_signing_request=csr)
 
-    @patch(
-        "charms.tls_certificates_interface.v3.tls_certificates.TLSCertificatesRequiresV3.request_certificate_creation",  # noqa: E501
-    )
+    @patch(f"{CERTIFICATES_LIB}.request_certificate_creation")
+    @patch("charms.sdcore_nrf_k8s.v0.fiveg_nrf.NRFRequires.nrf_url", new_callable=PropertyMock)
+    @patch("charm.check_output")
     def test_given_cert_already_stored_when_on_certificates_relation_joined_then_cert_is_not_requested(  # noqa: E501
-        self, patch_request_certificate_creation
+        self, patch_check_output, patched_nrf_url, patch_request_certificate_creation
     ):
         self.harness.add_storage(storage_name="certs", attach=True)
+        self.harness.add_storage(storage_name="config", attach=True)
         root = self.harness.get_filesystem_root(self.container_name)
         private_key = "whatever key content"
         (root / "support/TLS/pcf.key").write_text(private_key)
-        certificate = "whatever certificate content"
-        (root / "support/TLS/pcf.pem").write_text(certificate)
-        self.harness.set_can_connect(container="pcf", val=True)
-
-        self.harness.charm._on_certificates_relation_joined(event=Mock)
+        (root / "support/TLS/pcf.pem").write_text(CERTIFICATE)
+        self.harness.set_can_connect(container=self.container_name, val=True)
+        patch_check_output.return_value = b"1.1.1.1"
+        patched_nrf_url.return_value = VALID_NRF_URL
 
         patch_request_certificate_creation.assert_not_called()
 
+    @patch(f"{CERTIFICATES_LIB}.get_assigned_certificates")
+    @patch("charms.sdcore_nrf_k8s.v0.fiveg_nrf.NRFRequires.nrf_url", new_callable=PropertyMock)
+    @patch("charm.check_output")
     def test_given_csr_matches_stored_one_when_certificate_available_then_certificate_is_pushed(
-        self,
+        self, patch_check_output, patched_nrf_url, patch_get_assigned_certificates
     ):
         self.harness.add_storage(storage_name="certs", attach=True)
+        self.harness.add_storage(storage_name="config", attach=True)
         root = self.harness.get_filesystem_root(self.container_name)
         private_key = "whatever key content"
-        csr = "Whatever CSR content"
         (root / "support/TLS/pcf.key").write_text(private_key)
-        (root / "support/TLS/pcf.csr").write_text(csr)
-        certificate = "Whatever certificate content"
-        event = Mock()
-        event.certificate = certificate
-        event.certificate_signing_request = csr
-        self.harness.set_can_connect(container="pcf", val=True)
+        (root / "support/TLS/pcf.csr").write_text(CSR)
+        patch_check_output.return_value = b"1.1.1.1"
+        patched_nrf_url.return_value = VALID_NRF_URL
+        self._create_database_relation_and_populate_data()
+        self._create_nrf_relation()
+        self._create_certificates_relation()
 
-        self.harness.charm._on_certificate_available(event=event)
+        provider_certificate = Mock(ProviderCertificate)
+        provider_certificate.certificate = CERTIFICATE
+        provider_certificate.csr = CSR
+        patch_get_assigned_certificates.return_value = [provider_certificate]
+        self.harness.set_can_connect(container=self.container_name, val=True)
+        self.harness.container_pebble_ready(self.container_name)
 
-        self.assertEqual((root / "support/TLS/pcf.pem").read_text(), certificate)
+        self.assertEqual((root / "support/TLS/pcf.pem").read_text(), CERTIFICATE)
 
+    @patch(f"{CERTIFICATES_LIB}.get_assigned_certificates")
+    @patch("charms.sdcore_nrf_k8s.v0.fiveg_nrf.NRFRequires.nrf_url", new_callable=PropertyMock)
+    @patch("charm.check_output")
     def test_given_csr_doesnt_match_stored_one_when_certificate_available_then_certificate_is_not_pushed(  # noqa: E501
-        self,
+        self, patch_check_output, patched_nrf_url, patch_get_assigned_certificates
     ):
         self.harness.add_storage(storage_name="certs", attach=True)
+        self.harness.add_storage(storage_name="config", attach=True)
         root = self.harness.get_filesystem_root(self.container_name)
         private_key = "whatever key content"
-        csr = "Stored CSR content"
         (root / "support/TLS/pcf.key").write_text(private_key)
-        (root / "support/TLS/pcf.csr").write_text(csr)
-        certificate = "Whatever certificate content"
-        event = Mock()
-        event.certificate = certificate
-        event.certificate_signing_request = "Relation CSR content (different from stored one)"
-        self.harness.set_can_connect(container="pcf", val=True)
+        (root / "support/TLS/pcf.csr").write_text(CSR)
+        patch_check_output.return_value = b"1.1.1.1"
+        patched_nrf_url.return_value = VALID_NRF_URL
+        self._create_nrf_relation()
+        self._create_certificates_relation()
+        self.harness.set_can_connect(container=self.container_name, val=True)
 
-        self.harness.charm._on_certificate_available(event=event)
+        provider_certificate = Mock(ProviderCertificate)
+        provider_certificate.certificate = CERTIFICATE
+        provider_certificate.csr = "Relation CSR content (different from stored one)"
+        patch_get_assigned_certificates.return_value = [provider_certificate]
+
+        self.harness.container_pebble_ready(self.container_name)
 
         with self.assertRaises(FileNotFoundError):
             (root / "support/TLS/pcf.pem").read_text()
 
     @patch(
-        "charms.tls_certificates_interface.v3.tls_certificates.TLSCertificatesRequiresV3.request_certificate_creation",  # noqa: E501
+        f"{CERTIFICATES_LIB}.request_certificate_creation",  # noqa: E501
     )
     @patch("charm.generate_csr")
     def test_given_certificate_does_not_match_stored_one_when_certificate_expiring_then_certificate_is_not_requested(  # noqa: E501
@@ -613,20 +680,19 @@ class TestCharm(unittest.TestCase):
     ):
         self.harness.add_storage(storage_name="certs", attach=True)
         root = self.harness.get_filesystem_root(self.container_name)
-        certificate = "Stored certificate content"
-        (root / "support/TLS/pcf.pem").write_text(certificate)
+        (root / "support/TLS/pcf.pem").write_text(CERTIFICATE)
         event = Mock()
         event.certificate = "Relation certificate content (different from stored)"
         csr = b"whatever csr content"
         patch_generate_csr.return_value = csr
-        self.harness.set_can_connect(container="pcf", val=True)
+        self.harness.set_can_connect(container=self.container_name, val=True)
 
         self.harness.charm._on_certificate_expiring(event=event)
 
         patch_request_certificate_creation.assert_not_called()
 
     @patch(
-        "charms.tls_certificates_interface.v3.tls_certificates.TLSCertificatesRequiresV3.request_certificate_creation",  # noqa: E501
+        f"{CERTIFICATES_LIB}.request_certificate_creation",  # noqa: E501
     )
     @patch("charm.generate_csr")
     def test_given_certificate_matches_stored_one_when_certificate_expiring_then_certificate_is_requested(  # noqa: E501
@@ -635,15 +701,15 @@ class TestCharm(unittest.TestCase):
         self.harness.add_storage(storage_name="certs", attach=True)
         root = self.harness.get_filesystem_root(self.container_name)
         private_key = "whatever key content"
-        certificate = "whatever certificate content"
         (root / "support/TLS/pcf.key").write_text(private_key)
-        (root / "support/TLS/pcf.pem").write_text(certificate)
+        (root / "support/TLS/pcf.pem").write_text(CERTIFICATE)
         event = Mock()
-        event.certificate = certificate
-        csr = b"whatever csr content"
-        patch_generate_csr.return_value = csr
-        self.harness.set_can_connect(container="pcf", val=True)
+        event.certificate = CERTIFICATE
+        patch_generate_csr.return_value = CSR.encode()
+        self.harness.set_can_connect(container=self.container_name, val=True)
 
         self.harness.charm._on_certificate_expiring(event=event)
 
-        patch_request_certificate_creation.assert_called_with(certificate_signing_request=csr)
+        patch_request_certificate_creation.assert_called_with(
+            certificate_signing_request=CSR.encode()
+        )
