@@ -74,40 +74,34 @@ class PCFOperatorCharm(CharmBase):
             self._certificates.on.certificate_expiring, self._on_certificate_expiring
         )
 
-    def ready_to_configure(self):
-        """Returns whether all preconditions are met to proceed with configuration."""
-        if not self._container.can_connect():
-            self.unit.status = WaitingStatus("Waiting for container to be ready")
-            return False
-        for relation in [DATABASE_RELATION_NAME, NRF_RELATION_NAME, TLS_RELATION_NAME]:
-            if not self._relation_created(relation):
-                self.unit.status = BlockedStatus(
-                    f"Waiting for `{relation}` relation to be created"
-                )
-                return False
-        if not self._database_is_available():
-            self.unit.status = WaitingStatus(
-                f"Waiting for `{DATABASE_RELATION_NAME}` relation to be available"
-            )
-            return False
-        if not self._nrf_is_available():
-            self.unit.status = WaitingStatus("Waiting for NRF endpoint to be available")
-            return False
-        if not self._storage_is_attached():
-            self.unit.status = WaitingStatus("Waiting for the storage to be attached")
-            return False
-        if not _get_pod_ip():
-            self.unit.status = WaitingStatus("Waiting for pod IP address to be available")
-            return False
-        return True
-
-    def _configure_sdcore_pcf(self, event: EventBase) -> None:
+    def _configure_sdcore_pcf(self, event: EventBase) -> None:  # noqa C901
         """Adds Pebble layer and manages Juju unit status.
 
         Args:
             event (EventBase): Juju event.
         """
-        if not self.ready_to_configure():
+        if not self._container.can_connect():
+            self.unit.status = WaitingStatus("Waiting for container to be ready")
+            return
+        for relation in [DATABASE_RELATION_NAME, NRF_RELATION_NAME, TLS_RELATION_NAME]:
+            if not self._relation_created(relation):
+                self.unit.status = BlockedStatus(
+                    f"Waiting for `{relation}` relation to be created"
+                )
+                return
+        if not self._database_is_available():
+            self.unit.status = WaitingStatus(
+                f"Waiting for `{DATABASE_RELATION_NAME}` relation to be available"
+            )
+            return
+        if not self._nrf_is_available():
+            self.unit.status = WaitingStatus("Waiting for NRF endpoint to be available")
+            return
+        if not self._storage_is_attached():
+            self.unit.status = WaitingStatus("Waiting for the storage to be attached")
+            return
+        if not _get_pod_ip():
+            self.unit.status = WaitingStatus("Waiting for pod IP address to be available")
             return
         if not self._private_key_is_stored():
             self._generate_private_key()
