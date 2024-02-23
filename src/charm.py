@@ -56,6 +56,7 @@ class PCFOperatorCharm(CharmBase):
         self._nrf_requires = NRFRequires(charm=self, relation_name=NRF_RELATION_NAME)
         self.unit.set_ports(PCF_SBI_PORT)
         self._certificates = TLSCertificatesRequiresV3(self, "certificates")
+        self.framework.observe(self.on.update_status, self._configure_sdcore_pcf)
         self.framework.observe(self.on.database_relation_joined, self._configure_sdcore_pcf)
         self.framework.observe(self.on.database_relation_broken, self._on_database_relation_broken)
         self.framework.observe(self._database.on.database_created, self._configure_sdcore_pcf)
