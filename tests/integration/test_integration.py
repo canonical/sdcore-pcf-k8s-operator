@@ -22,7 +22,8 @@ GRAFANA_AGENT_APP_NAME = "grafana-agent-k8s"
 
 async def _deploy_database(ops_test: OpsTest):
     """Deploy a MongoDB."""
-    await ops_test.model.deploy(  # type: ignore[union-attr]
+    assert ops_test.model
+    await ops_test.model.deploy(
         DATABASE_APP_NAME,
         application_name=DATABASE_APP_NAME,
         channel="6/beta",
@@ -32,7 +33,8 @@ async def _deploy_database(ops_test: OpsTest):
 
 async def _deploy_nrf(ops_test: OpsTest):
     """Deploy a NRF."""
-    await ops_test.model.deploy(  # type: ignore[union-attr]
+    assert ops_test.model
+    await ops_test.model.deploy(
         NRF_APP_NAME,
         application_name=NRF_APP_NAME,
         channel="edge",
@@ -41,7 +43,8 @@ async def _deploy_nrf(ops_test: OpsTest):
 
 
 async def _deploy_tls_provider(ops_test: OpsTest):
-    await ops_test.model.deploy(  # type: ignore[union-attr]
+    assert ops_test.model
+    await ops_test.model.deploy(
         TLS_PROVIDER_NAME,
         application_name=TLS_PROVIDER_NAME,
         channel="beta",
@@ -49,6 +52,7 @@ async def _deploy_tls_provider(ops_test: OpsTest):
 
 
 async def _deploy_grafana_agent(ops_test: OpsTest):
+    assert ops_test.model
     await ops_test.model.deploy(
         GRAFANA_AGENT_APP_NAME,
         application_name=GRAFANA_AGENT_APP_NAME,
