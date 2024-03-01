@@ -10,6 +10,7 @@ from subprocess import check_output
 from typing import Optional
 
 from charms.data_platform_libs.v0.data_interfaces import DatabaseRequires  # type: ignore[import]
+from charms.loki_k8s.v1.loki_push_api import LogForwarder
 from charms.sdcore_nrf_k8s.v0.fiveg_nrf import NRFRequires  # type: ignore[import]
 from charms.tls_certificates_interface.v3.tls_certificates import (  # type: ignore[import]
     CertificateExpiringEvent,
@@ -38,6 +39,7 @@ PRIVATE_KEY_NAME = "pcf.key"
 CSR_NAME = "pcf.csr"
 CERTIFICATE_NAME = "pcf.pem"
 CERTIFICATE_COMMON_NAME = "pcf.sdcore"
+LOGGING_RELATION_NAME = "logging"
 
 
 class PCFOperatorCharm(CharmBase):
@@ -56,6 +58,7 @@ class PCFOperatorCharm(CharmBase):
         self._nrf_requires = NRFRequires(charm=self, relation_name=NRF_RELATION_NAME)
         self.unit.set_ports(PCF_SBI_PORT)
         self._certificates = TLSCertificatesRequiresV3(self, "certificates")
+        self._logging = LogForwarder(charm=self, relation_name=LOGGING_RELATION_NAME)
         self.framework.observe(self.on.update_status, self._configure_sdcore_pcf)
         self.framework.observe(self.on.database_relation_joined, self._configure_sdcore_pcf)
         self.framework.observe(self.on.database_relation_broken, self._on_database_relation_broken)
