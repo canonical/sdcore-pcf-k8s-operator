@@ -38,6 +38,9 @@ requires:
     interface: fiveg_nrf
   certificates:
     interface: tls-certificates
+  logging:
+      interface: loki_push_api
 
 assumes:
   - k8s-api
+  - juju >= 3.4
