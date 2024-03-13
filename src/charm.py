@@ -19,10 +19,17 @@ from charms.tls_certificates_interface.v3.tls_certificates import (  # type: ign
     generate_private_key,
 )
 from jinja2 import Environment, FileSystemLoader
+from ops import (
+    ActiveStatus,
+    BlockedStatus,
+    CollectStatusEvent,
+    ModelError,
+    RelationBrokenEvent,
+    WaitingStatus,
+)
 from ops.charm import CharmBase
 from ops.framework import EventBase
 from ops.main import main
-from ops.model import ActiveStatus, BlockedStatus, WaitingStatus
 from ops.pebble import Layer
 
 logger = logging.getLogger(__name__)
@@ -48,7 +55,7 @@ class PCFOperatorCharm(CharmBase):
     def __init__(self, *args):
         super().__init__(*args)
         if not self.unit.is_leader():
-            raise NotImplementedError("Scaling is not implemented for this charm")
+            return
         self._container_name = self._service_name = "pcf"
         self._container = self.unit.get_container(self._container_name)
 
@@ -60,12 +67,13 @@ class PCFOperatorCharm(CharmBase):
         self._certificates = TLSCertificatesRequiresV3(self, "certificates")
         self._logging = LogForwarder(charm=self, relation_name=LOGGING_RELATION_NAME)
         self.framework.observe(self.on.update_status, self._configure_sdcore_pcf)
+        self.framework.observe(self.on.collect_unit_status, self._on_collect_unit_status)
         self.framework.observe(self.on.database_relation_joined, self._configure_sdcore_pcf)
-        self.framework.observe(self.on.database_relation_broken, self._on_database_relation_broken)
+        self.framework.observe(self.on.database_relation_broken, self._configure_sdcore_pcf)
         self.framework.observe(self._database.on.database_created, self._configure_sdcore_pcf)
         self.framework.observe(self.on.fiveg_nrf_relation_joined, self._configure_sdcore_pcf)
         self.framework.observe(self._nrf_requires.on.nrf_available, self._configure_sdcore_pcf)
-        self.framework.observe(self._nrf_requires.on.nrf_broken, self._on_nrf_broken)
+        self.framework.observe(self._nrf_requires.on.nrf_broken, self._configure_sdcore_pcf)
         self.framework.observe(self.on.pcf_pebble_ready, self._configure_sdcore_pcf)
         self.framework.observe(self.on.certificates_relation_joined, self._configure_sdcore_pcf)
         self.framework.observe(
@@ -78,66 +86,193 @@ class PCFOperatorCharm(CharmBase):
             self._certificates.on.certificate_expiring, self._on_certificate_expiring
         )
 
-    def _configure_sdcore_pcf(self, event: EventBase) -> None:  # noqa C901
+    def _on_collect_unit_status(self, event: CollectStatusEvent):  # noqa C901
+        """Check the unit status and set to Unit when CollectStatusEvent is fired.
+
+        Args:
+            event: CollectStatusEvent
+        """
+        if not self.unit.is_leader():
+            # NOTE: In cases where leader status is lost before the charm is
+            # finished processing all teardown events, this prevents teardown
+            # event code from running. Luckily, for this charm, none of the
+            # teardown code is necessary to perform if we're removing the
+            # charm.
+            event.add_status(BlockedStatus("Scaling is not implemented for this charm"))
+            return
+
+        if not self._container.can_connect():
+            event.add_status(WaitingStatus("Waiting for container to be ready"))
+            return
+
+        for relation in [DATABASE_RELATION_NAME, NRF_RELATION_NAME, TLS_RELATION_NAME]:
+            if not self._relation_created(relation):
+                event.add_status(BlockedStatus(f"Waiting for {relation} relation"))
+                return
+
+        if not self._database_is_available():
+            event.add_status(
+                WaitingStatus(f"Waiting for `{DATABASE_RELATION_NAME}` relation to be available")
+            )
+            return
+
+        if not self._nrf_is_available():
+            event.add_status(WaitingStatus("Waiting for NRF endpoint to be available"))
+            return
+
+        if not self._storage_is_attached():
+            event.add_status(WaitingStatus("Waiting for the storage to be attached"))
+            return
+
+        if not _get_pod_ip():
+            event.add_status(WaitingStatus("Waiting for pod IP address to be available"))
+            return
+
+        if self._csr_is_stored() and not self._get_current_provider_certificate():
+            event.add_status(WaitingStatus("Waiting for certificates to be stored"))
+            return
+
+        if not self._pcf_service_is_running():
+            event.add_status(WaitingStatus("Waiting for PCF service to start"))
+            return
+
+        event.add_status(ActiveStatus())
+
+    def _pcf_service_is_running(self) -> bool:
+        """Check if the PCF service is running.
+
+        Returns:
+            bool: Whether the PCF service is running.
+        """
+        if not self._container.can_connect():
+            return False
+        try:
+            service = self._container.get_service(self._service_name)
+        except ModelError:
+            return False
+        return service.is_running()
+
+    def ready_to_configure(self) -> bool:
+        """Returns whether the preconditions are met to proceed with the configuration.
+
+        Returns:
+            ready_to_configure: True if all conditions are met else False
+        """
+        if not self._container.can_connect():
+            return False
+
+        for relation in [DATABASE_RELATION_NAME, NRF_RELATION_NAME, TLS_RELATION_NAME]:
+            if not self._relation_created(relation):
+                return False
+
+        if not self._database_is_available():
+            return False
+
+        if not self._nrf_is_available():
+            return False
+
+        if not self._storage_is_attached():
+            return False
+
+        if not _get_pod_ip():
+            return False
+
+        return True
+
+    def _configure_sdcore_pcf(self, event: EventBase) -> None:
         """Adds Pebble layer and manages Juju unit status.
 
         Args:
             event (EventBase): Juju event.
         """
-        if not self._container.can_connect():
-            self.unit.status = WaitingStatus("Waiting for container to be ready")
+        if not self.ready_to_configure():
+            logger.info("The preconditions for the configuration are not met yet.")
             return
-        for relation in [DATABASE_RELATION_NAME, NRF_RELATION_NAME, TLS_RELATION_NAME]:
-            if not self._relation_created(relation):
-                self.unit.status = BlockedStatus(
-                    f"Waiting for `{relation}` relation to be created"
-                )
-                return
-        if not self._database_is_available():
-            self.unit.status = WaitingStatus(
-                f"Waiting for `{DATABASE_RELATION_NAME}` relation to be available"
-            )
-            return
-        if not self._nrf_is_available():
-            self.unit.status = WaitingStatus("Waiting for NRF endpoint to be available")
-            return
-        if not self._storage_is_attached():
-            self.unit.status = WaitingStatus("Waiting for the storage to be attached")
-            return
-        if not _get_pod_ip():
-            self.unit.status = WaitingStatus("Waiting for pod IP address to be available")
-            return
+
         if not self._private_key_is_stored():
             self._generate_private_key()
+
         if not self._csr_is_stored():
             self._request_new_certificate()
 
         provider_certificate = self._get_current_provider_certificate()
         if not provider_certificate:
-            self.unit.status = WaitingStatus("Waiting for certificates to be stored")
             return
-        certificate_changed = self._update_certificate(provider_certificate=provider_certificate)
-        config_file_changed = self._update_config_file()
-        self._configure_pebble(restart=(config_file_changed or certificate_changed))
-        self.unit.status = ActiveStatus()
 
-    def _on_nrf_broken(self, event: EventBase) -> None:
-        """Event handler for NRF relation broken.
+        if certificate_update_required := self._is_certificate_update_required(
+            provider_certificate
+        ):
+            self._store_certificate(certificate=provider_certificate)
+
+        desired_config_file = self._generate_pcf_config_file()
+        if config_update_required := self._is_config_update_required(desired_config_file):
+            self._push_config_file(content=desired_config_file)
+
+        should_restart = config_update_required or certificate_update_required
+        self._configure_pebble(restart=should_restart)
+
+    def _is_certificate_update_required(self, provider_certificate) -> bool:
+        """Checks the provided certificate and existing certificate.
+
+        Returns True if update is required.
 
         Args:
-            event (NRFBrokenEvent): Juju event
+            provider_certificate: str
+        Returns:
+            True if update is required else False
         """
-        self.unit.status = BlockedStatus("Waiting for fiveg_nrf relation")
+        return self._get_existing_certificate() != provider_certificate
 
-    def _on_database_relation_broken(self, event: EventBase) -> None:
-        """Event handler for database relation broken.
+    def _get_existing_certificate(self) -> str:
+        """Returns the existing certificate if present else empty string."""
+        return self._get_stored_certificate() if self._certificate_is_stored() else ""
+
+    def _push_config_file(
+        self,
+        content: str,
+    ) -> None:
+        """Push the PCF config file to the container.
 
         Args:
-            event: Juju event
+            content (str): Content of the config file.
         """
-        self.unit.status = BlockedStatus("Waiting for database relation")
+        self._container.push(
+            path=f"{BASE_CONFIG_PATH}/{CONFIG_FILE_NAME}",
+            source=content,
+        )
+        logger.info("Pushed: %s to workload.", CONFIG_FILE_NAME)
 
-    def _on_certificates_relation_broken(self, event: EventBase) -> None:
+    def _generate_pcf_config_file(self) -> str:
+        """Handles creation of the PCF config file based on a given template.
+
+        Returns:
+            content (str): desired config file content
+        """
+        return self._render_config_file(
+            database_name=DATABASE_NAME,
+            database_url=self._get_database_data()["uris"].split(",")[0],
+            nrf_url=self._nrf_requires.nrf_url,
+            pcf_sbi_port=PCF_SBI_PORT,
+            pod_ip=_get_pod_ip(),  # type: ignore[arg-type]
+            scheme="https",
+        )
+
+    def _is_config_update_required(self, content: str) -> bool:
+        """Decides whether config update is required by checking existence and config content.
+
+        Args:
+            content (str): desired config file content
+
+        Returns:
+            True if config update is required else False
+        """
+        if not self._config_file_is_written() or not self._config_file_content_matches(
+            content=content
+        ):
+            return True
+        return False
+
+    def _on_certificates_relation_broken(self, event: RelationBrokenEvent) -> None:
         """Deletes TLS related artifacts and reconfigures workload.
 
         Args:
@@ -149,7 +284,6 @@ class PCFOperatorCharm(CharmBase):
         self._delete_private_key()
         self._delete_csr()
         self._delete_certificate()
-        self.unit.status = BlockedStatus("Waiting for certificates relation")
 
     def _get_current_provider_certificate(self) -> str | None:
         """Compares the current certificate request to what is in the interface.
@@ -161,20 +295,6 @@ class PCFOperatorCharm(CharmBase):
             if provider_certificate.csr == csr:
                 return provider_certificate.certificate
         return None
-
-    def _update_certificate(self, provider_certificate) -> bool:
-        """Compares the provided certificate to what is stored.
-
-        Returns True if the certificate was updated
-        """
-        existing_certificate = (
-            self._get_stored_certificate() if self._certificate_is_stored() else ""
-        )
-
-        if existing_certificate != provider_certificate:
-            self._store_certificate(certificate=provider_certificate)
-            return True
-        return False
 
     def _on_certificate_expiring(self, event: CertificateExpiringEvent) -> None:
         """Requests new certificate.
@@ -284,30 +404,6 @@ class PCFOperatorCharm(CharmBase):
             return
         self._container.replan()
 
-    def _update_config_file(self) -> bool:
-        """Updates config file.
-
-        Writes the config file if it does not exist or
-        the content does not match.
-
-        Returns:
-            bool: True if config file was updated, False otherwise.
-        """
-        content = self._render_config_file(
-            database_name=DATABASE_NAME,
-            database_url=self._get_database_data()["uris"].split(",")[0],
-            nrf_url=self._nrf_requires.nrf_url,
-            pcf_sbi_port=PCF_SBI_PORT,
-            pod_ip=_get_pod_ip(),  # type: ignore[arg-type]
-            scheme="https",
-        )
-        if not self._config_file_is_written() or not self._config_file_content_matches(
-            content=content
-        ):
-            self._write_config_file(content=content)
-            return True
-        return False
-
     def _render_config_file(
         self,
         *,
@@ -339,18 +435,6 @@ class PCFOperatorCharm(CharmBase):
             pod_ip=pod_ip,
             scheme=scheme,
         )
-
-    def _write_config_file(self, content: str) -> None:
-        """Writes config file to workload.
-
-        Args:
-            content (str): Config file content.
-        """
-        self._container.push(
-            path=f"{BASE_CONFIG_PATH}/{CONFIG_FILE_NAME}",
-            source=content,
-        )
-        logger.info("Pushed: %s to workload.", CONFIG_FILE_NAME)
 
     def _config_file_is_written(self) -> bool:
         """Returns whether the config file was written to the workload container.
