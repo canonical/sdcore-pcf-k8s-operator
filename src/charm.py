@@ -69,11 +69,9 @@ class PCFOperatorCharm(CharmBase):
         self.framework.observe(self.on.update_status, self._configure_sdcore_pcf)
         self.framework.observe(self.on.collect_unit_status, self._on_collect_unit_status)
         self.framework.observe(self.on.database_relation_joined, self._configure_sdcore_pcf)
-        self.framework.observe(self.on.database_relation_broken, self._configure_sdcore_pcf)
         self.framework.observe(self._database.on.database_created, self._configure_sdcore_pcf)
         self.framework.observe(self.on.fiveg_nrf_relation_joined, self._configure_sdcore_pcf)
         self.framework.observe(self._nrf_requires.on.nrf_available, self._configure_sdcore_pcf)
-        self.framework.observe(self._nrf_requires.on.nrf_broken, self._configure_sdcore_pcf)
         self.framework.observe(self.on.pcf_pebble_ready, self._configure_sdcore_pcf)
         self.framework.observe(self.on.certificates_relation_joined, self._configure_sdcore_pcf)
         self.framework.observe(
