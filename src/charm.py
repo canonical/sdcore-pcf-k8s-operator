@@ -151,7 +151,7 @@ class PCFOperatorCharm(CharmBase):
         return service.is_running()
 
     def ready_to_configure(self) -> bool:
-        """Returns whether the preconditions are met to proceed with the configuration.
+        """Return whether the preconditions are met to proceed with the configuration.
 
         Returns:
             ready_to_configure: True if all conditions are met else False
@@ -178,7 +178,7 @@ class PCFOperatorCharm(CharmBase):
         return True
 
     def _configure_sdcore_pcf(self, event: EventBase) -> None:
-        """Adds Pebble layer and manages Juju unit status.
+        """Add Pebble layer and manages Juju unit status.
 
         Args:
             event (EventBase): Juju event.
@@ -210,7 +210,7 @@ class PCFOperatorCharm(CharmBase):
         self._configure_pebble(restart=should_restart)
 
     def _is_certificate_update_required(self, provider_certificate) -> bool:
-        """Checks the provided certificate and existing certificate.
+        """Check the provided certificate and existing certificate.
 
         Returns True if update is required.
 
@@ -222,7 +222,7 @@ class PCFOperatorCharm(CharmBase):
         return self._get_existing_certificate() != provider_certificate
 
     def _get_existing_certificate(self) -> str:
-        """Returns the existing certificate if present else empty string."""
+        """Return the existing certificate if present else empty string."""
         return self._get_stored_certificate() if self._certificate_is_stored() else ""
 
     def _push_config_file(
@@ -241,7 +241,7 @@ class PCFOperatorCharm(CharmBase):
         logger.info("Pushed: %s to workload.", CONFIG_FILE_NAME)
 
     def _generate_pcf_config_file(self) -> str:
-        """Handles creation of the PCF config file based on a given template.
+        """Handle creation of the PCF config file based on a given template.
 
         Returns:
             content (str): desired config file content
@@ -256,7 +256,7 @@ class PCFOperatorCharm(CharmBase):
         )
 
     def _is_config_update_required(self, content: str) -> bool:
-        """Decides whether config update is required by checking existence and config content.
+        """Decide whether config update is required by checking existence and config content.
 
         Args:
             content (str): desired config file content
@@ -271,7 +271,7 @@ class PCFOperatorCharm(CharmBase):
         return False
 
     def _on_certificates_relation_broken(self, event: RelationBrokenEvent) -> None:
-        """Deletes TLS related artifacts and reconfigures workload.
+        """Delete TLS related artifacts and reconfigures workload.
 
         Args:
             event (EventBase): Juju event.
@@ -284,7 +284,7 @@ class PCFOperatorCharm(CharmBase):
         self._delete_certificate()
 
     def _get_current_provider_certificate(self) -> str | None:
-        """Compares the current certificate request to what is in the interface.
+        """Compare the current certificate request to what is in the interface.
 
         Returns the current valid provider certificate if present
         """
@@ -295,7 +295,7 @@ class PCFOperatorCharm(CharmBase):
         return None
 
     def _on_certificate_expiring(self, event: CertificateExpiringEvent) -> None:
-        """Requests new certificate.
+        """Request new certificate.
 
         Args:
             event (CertificateExpiringEvent): Juju event.
@@ -309,12 +309,12 @@ class PCFOperatorCharm(CharmBase):
         self._request_new_certificate()
 
     def _generate_private_key(self) -> None:
-        """Generates and stores private key."""
+        """Generate and stores private key."""
         private_key = generate_private_key()
         self._store_private_key(private_key)
 
     def _request_new_certificate(self) -> None:
-        """Generates and stores CSR, and uses it to request a new certificate."""
+        """Generate and stores CSR, and uses it to request a new certificate."""
         private_key = self._get_stored_private_key()
         csr = generate_csr(
             private_key=private_key,
@@ -325,59 +325,59 @@ class PCFOperatorCharm(CharmBase):
         self._certificates.request_certificate_creation(certificate_signing_request=csr)
 
     def _delete_private_key(self) -> None:
-        """Removes private key from workload."""
+        """Remove private key from workload."""
         if not self._private_key_is_stored():
             return
         self._container.remove_path(path=f"{CERTS_DIR_PATH}/{PRIVATE_KEY_NAME}")
         logger.info("Removed private key from workload")
 
     def _delete_csr(self) -> None:
-        """Deletes CSR from workload."""
+        """Delete CSR from workload."""
         if not self._csr_is_stored():
             return
         self._container.remove_path(path=f"{CERTS_DIR_PATH}/{CSR_NAME}")
         logger.info("Removed CSR from workload")
 
     def _delete_certificate(self) -> None:
-        """Deletes certificate from workload."""
+        """Delete certificate from workload."""
         if not self._certificate_is_stored():
             return
         self._container.remove_path(path=f"{CERTS_DIR_PATH}/{CERTIFICATE_NAME}")
         logger.info("Removed certificate from workload")
 
     def _private_key_is_stored(self) -> bool:
-        """Returns whether private key is stored in workload."""
+        """Return whether private key is stored in workload."""
         return self._container.exists(path=f"{CERTS_DIR_PATH}/{PRIVATE_KEY_NAME}")
 
     def _csr_is_stored(self) -> bool:
-        """Returns whether CSR is stored in workload."""
+        """Return whether CSR is stored in workload."""
         return self._container.exists(path=f"{CERTS_DIR_PATH}/{CSR_NAME}")
 
     def _get_stored_certificate(self) -> str:
-        """Returns stored certificate."""
+        """Return stored certificate."""
         return str(self._container.pull(path=f"{CERTS_DIR_PATH}/{CERTIFICATE_NAME}").read())
 
     def _get_stored_csr(self) -> str:
-        """Returns stored CSR."""
+        """Return stored CSR."""
         return str(self._container.pull(path=f"{CERTS_DIR_PATH}/{CSR_NAME}").read())
 
     def _get_stored_private_key(self) -> bytes:
-        """Returns stored private key."""
+        """Return stored private key."""
         return str(
             self._container.pull(path=f"{CERTS_DIR_PATH}/{PRIVATE_KEY_NAME}").read()
         ).encode()
 
     def _certificate_is_stored(self) -> bool:
-        """Returns whether certificate is stored in workload."""
+        """Return whether certificate is stored in workload."""
         return self._container.exists(path=f"{CERTS_DIR_PATH}/{CERTIFICATE_NAME}")
 
     def _store_certificate(self, certificate: str) -> None:
-        """Stores certificate in workload."""
+        """Store certificate in workload."""
         self._container.push(path=f"{CERTS_DIR_PATH}/{CERTIFICATE_NAME}", source=certificate)
         logger.info("Pushed certificate pushed to workload")
 
     def _store_private_key(self, private_key: bytes) -> None:
-        """Stores private key in workload."""
+        """Store private key in workload."""
         self._container.push(
             path=f"{CERTS_DIR_PATH}/{PRIVATE_KEY_NAME}",
             source=private_key.decode(),
@@ -385,7 +385,7 @@ class PCFOperatorCharm(CharmBase):
         logger.info("Pushed private key to workload")
 
     def _store_csr(self, csr: bytes) -> None:
-        """Stores CSR in workload."""
+        """Store CSR in workload."""
         self._container.push(path=f"{CERTS_DIR_PATH}/{CSR_NAME}", source=csr.decode().strip())
         logger.info("Pushed CSR to workload")
 
@@ -412,9 +412,11 @@ class PCFOperatorCharm(CharmBase):
         pod_ip: str,
         scheme: str,
     ) -> str:
-        """Renders the config file content.
+        """Render the config file content.
 
         Args:
+            database_name (str): name of the DB.
+            database_url (str): URL of the DB.
             nrf_url (str): NRF URL.
             pcf_sbi_port (int): PCF SBI port.
             pod_ip (str): Pod IPv4.
@@ -435,7 +437,7 @@ class PCFOperatorCharm(CharmBase):
         )
 
     def _config_file_is_written(self) -> bool:
-        """Returns whether the config file was written to the workload container.
+        """Return whether the config file was written to the workload container.
 
         Returns:
             bool: Whether the config file was written.
@@ -443,7 +445,7 @@ class PCFOperatorCharm(CharmBase):
         return bool(self._container.exists(f"{BASE_CONFIG_PATH}/{CONFIG_FILE_NAME}"))
 
     def _config_file_content_matches(self, content: str) -> bool:
-        """Returns whether the config file content matches the provided content.
+        """Return whether the config file content matches the provided content.
 
         Args:
             content (str): Config file content.
@@ -455,7 +457,7 @@ class PCFOperatorCharm(CharmBase):
         return existing_content.read() == content
 
     def _relation_created(self, relation_name: str) -> bool:
-        """Returns whether a given Juju relation was crated.
+        """Return whether a given Juju relation was created.
 
         Args:
             relation_name (str): Relation name.
@@ -466,7 +468,7 @@ class PCFOperatorCharm(CharmBase):
         return bool(self.model.get_relation(relation_name))
 
     def _get_database_data(self) -> dict:
-        """Returns the database data.
+        """Return the database data.
 
         Returns:
             dict: The database data.
@@ -479,7 +481,7 @@ class PCFOperatorCharm(CharmBase):
         return self._database.fetch_relation_data()[self._database.relations[0].id]
 
     def _database_is_available(self) -> bool:
-        """Returns whether database relation is available.
+        """Return whether database relation is available.
 
         Returns:
             bool: Whether database relation is available.
@@ -487,7 +489,7 @@ class PCFOperatorCharm(CharmBase):
         return bool(self._database.is_resource_created())
 
     def _nrf_is_available(self) -> bool:
-        """Returns whether the NRF endpoint is available.
+        """Return whether the NRF endpoint is available.
 
         Returns:
             bool: whether the NRF endpoint is available.
@@ -495,7 +497,7 @@ class PCFOperatorCharm(CharmBase):
         return bool(self._nrf_requires.nrf_url)
 
     def _storage_is_attached(self) -> bool:
-        """Returns whether storage is attached to the workload container.
+        """Return whether storage is attached to the workload container.
 
         Returns:
             bool: Whether storage is attached.
@@ -504,7 +506,7 @@ class PCFOperatorCharm(CharmBase):
 
     @property
     def _pebble_layer(self) -> Layer:
-        """Returns pebble layer.
+        """Return pebble layer.
 
         Returns:
             Layer: Pebble Layer
@@ -526,7 +528,7 @@ class PCFOperatorCharm(CharmBase):
 
     @property
     def _environment_variables(self) -> dict:
-        """Returns environment variables.
+        """Return environment variables.
 
         Returns:
             dict: Environment variables.
@@ -542,7 +544,7 @@ class PCFOperatorCharm(CharmBase):
 
 
 def _get_pod_ip() -> Optional[str]:
-    """Returns the pod IP using juju client.
+    """Return the pod IP using juju client.
 
     Returns:
         str: The pod IP.
