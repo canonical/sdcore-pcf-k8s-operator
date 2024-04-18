@@ -401,8 +401,7 @@ class PCFOperatorCharm(CharmBase):
                 self._container_name, self._pebble_layer, combine=True
             )
             self._container.replan()
-            self.logger.info("New layer added: %s", self._pebble_layer)
-            restart = True
+            logger.info("New layer added: %s", self._pebble_layer)
         if restart:
             self._container.restart(self._service_name)
             logger.info("Restarted container %s", self._service_name)
