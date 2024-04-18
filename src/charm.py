@@ -395,12 +395,18 @@ class PCFOperatorCharm(CharmBase):
         Args:
             restart (bool): Whether to restart the Pebble service. Defaults to False.
         """
-        self._container.add_layer(self._container_name, self._pebble_layer, combine=True)
+        plan = self._container.get_plan()
+        if plan.services != self._pebble_layer.services:
+            self._container.add_layer(
+                self._container_name, self._pebble_layer, combine=True
+            )
+            self._container.replan()
+            self.logger.info("New layer added: %s", self._pebble_layer)
+            restart = True
         if restart:
             self._container.restart(self._service_name)
             logger.info("Restarted container %s", self._service_name)
             return
-        self._container.replan()
 
     def _render_config_file(
         self,
