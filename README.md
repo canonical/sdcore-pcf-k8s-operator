@@ -7,8 +7,8 @@ A Charmed Operator for SD-Core's Policy Control Function (PCF) component for K8s
 
 ```bash
 juju deploy mongodb-k8s --channel=6/beta --trust
-juju deploy sdcore-nrf-k8s --channel=1.4/edge
-juju deploy sdcore-pcf-k8s --channel=1.4/edge 
+juju deploy sdcore-nrf-k8s --channel=1.5/edge
+juju deploy sdcore-pcf-k8s --channel=1.5/edge 
 
 juju deploy self-signed-certificates
 
