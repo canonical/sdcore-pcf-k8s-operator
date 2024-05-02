@@ -1,3 +1,53 @@
+name: sdcore-pcf-k8s
+
+summary: A Charmed Operator for SD-Core's PCF component.
+description: |
+  A Charmed Operator for SD-Core's Policy Control Function (PCF) component.
+links:
+  website:
+    - https://charmhub.io/sdcore-pcf-k8s
+  source:
+    - https://github.com/canonical/sdcore-pcf-k8s-operator
+  issues:
+    - https://github.com/canonical/sdcore-pcf-k8s-operator/issues
+
+containers:
+  pcf:
+    resource: pcf-image
+    mounts:
+      - storage: config
+        location: /etc/pcf/
+      - storage: certs
+        location: /support/TLS
+
+resources:
+  pcf-image:
+    type: oci-image
+    description: OCI image for 5G pcf
+    upstream-source: ghcr.io/canonical/sdcore-pcf:1.4.0
+
+storage:
+  config:
+    type: filesystem
+    minimum-size: 1M
+  certs:
+    type: filesystem
+    minimum-size: 1M
+
+requires:
+  database:
+    interface: mongodb_client
+  fiveg_nrf:
+    interface: fiveg_nrf
+  certificates:
+    interface: tls-certificates
+  logging:
+      interface: loki_push_api
+
+assumes:
+  - k8s-api
+  - juju >= 3.4
+
 type: charm
 bases:
   - build-on:
