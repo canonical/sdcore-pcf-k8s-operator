@@ -35,8 +35,6 @@ storage:
     minimum-size: 1M
 
 requires:
-  database:
-    interface: mongodb_client
   fiveg_nrf:
     interface: fiveg_nrf
   certificates:
