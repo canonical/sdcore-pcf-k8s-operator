@@ -391,6 +391,8 @@ class PCFOperatorCharm(CharmBase):
         """Render the config file content.
 
         Args:
+            nrf_url (str): NRF URL.
+            pcf_sbi_port (int): PCF SBI port.
             pod_ip (str): Pod IPv4.
             scheme (str): SBI interface scheme ("http" or "https")
 
