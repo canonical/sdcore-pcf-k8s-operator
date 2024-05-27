@@ -1,8 +1,5 @@
 configuration:
   defaultBdtRefId: BdtPolicyId-
-  mongodb:
-    name: free5gc
-    url: http://1.1.1.1
   nrfUri: https://nrf:443
   pcfName: PCF
   sbi:
@@ -36,9 +33,6 @@ logger:
     ReportCaller: false
     debugLevel: info
   FSM:
-    ReportCaller: false
-    debugLevel: info
-  MongoDBLibrary:
     ReportCaller: false
     debugLevel: info
   N3IWF:

@@ -8,7 +8,6 @@ from unittest.mock import Mock, PropertyMock, patch
 import yaml
 from charm import (
     CONFIG_FILE_NAME,
-    DATABASE_RELATION_NAME,
     NRF_RELATION_NAME,
     TLS_RELATION_NAME,
     PCFOperatorCharm,
@@ -35,7 +34,6 @@ class TestCharm(unittest.TestCase):
     def setUp(self):
         self.maxDiff = None
         self.namespace = "whatever"
-        self.default_database_application_name = "mongodb-k8s"
         self.metadata = self._get_metadata()
         self.container_name = list(self.metadata["containers"].keys())[0]
         self.harness = testing.Harness(PCFOperatorCharm)
@@ -68,37 +66,6 @@ class TestCharm(unittest.TestCase):
         with open(path, "r") as f:
             content = f.read()
         return content
-
-    def _create_database_relation(self) -> int:
-        """Create database relation.
-
-        Returns:
-            int: relation id.
-        """
-        database_app_name = "mongodb-k8s"
-        relation_id = self.harness.add_relation(
-            relation_name=DATABASE_RELATION_NAME, remote_app=database_app_name
-        )
-        self.harness.add_relation_unit(
-            relation_id=relation_id, remote_unit_name=f"{database_app_name}/0"
-        )
-        return relation_id
-
-    def _create_database_relation_and_populate_data(self) -> int:
-        database_url = "http://1.1.1.1"
-        database_username = "banana"
-        database_password = "pizza"
-        database_relation_id = self._create_database_relation()
-        self.harness.update_relation_data(
-            relation_id=database_relation_id,
-            app_or_unit=self.default_database_application_name,
-            key_values={
-                "username": database_username,
-                "password": database_password,
-                "uris": "".join([database_url]),
-            },
-        )
-        return database_relation_id
 
     def _create_nrf_relation(self) -> int:
         """Create NRF relation.
@@ -137,23 +104,10 @@ class TestCharm(unittest.TestCase):
             self.harness.model.unit.status, WaitingStatus("Waiting for container to be ready")
         )
 
-    def test_given_container_can_connect_and_database_relation_is_not_created_when_configure_sdcore_pcf_then_status_is_blocked(  # noqa: E501
-        self,
-    ):
-        self.harness.set_can_connect(container=self.container_name, val=True)
-
-        self.harness.charm._configure_sdcore_pcf(event=Mock())
-        self.harness.evaluate_status()
-        self.assertEqual(
-            self.harness.model.unit.status,
-            BlockedStatus("Waiting for database relation"),
-        )
-
     def test_given_container_can_connect_and_fiveg_nrf_relation_is_not_created_when_configure_sdcore_pcf_then_status_is_blocked(  # noqa: E501
         self,
     ):
         self.harness.set_can_connect(container=self.container_name, val=True)
-        self._create_database_relation()
 
         self.harness.charm._configure_sdcore_pcf(event=Mock())
         self.harness.evaluate_status()
@@ -166,7 +120,6 @@ class TestCharm(unittest.TestCase):
         self,
     ):
         self.harness.set_can_connect(container=self.container_name, val=True)
-        self._create_database_relation()
         self._create_nrf_relation()
 
         self.harness.charm._configure_sdcore_pcf(event=Mock())
@@ -190,7 +143,6 @@ class TestCharm(unittest.TestCase):
         self.harness.set_can_connect(container=self.container_name, val=True)
         patched_nrf_url.return_value = VALID_NRF_URL
         nrf_relation_id = self._create_nrf_relation()
-        self._create_database_relation_and_populate_data()
         self.harness.add_relation(
             relation_name=TLS_RELATION_NAME, remote_app="tls-certificates-operator"
         )
@@ -202,55 +154,11 @@ class TestCharm(unittest.TestCase):
             BlockedStatus("Waiting for fiveg_nrf relation"),
         )
 
-    @patch("charm.check_output")
-    @patch("charms.sdcore_nrf_k8s.v0.fiveg_nrf.NRFRequires.nrf_url", new_callable=PropertyMock)
-    @patch("ops.model.Container.restart")
-    def test_given_pcf_charm_in_active_state_when_database_relation_breaks_then_status_is_blocked(
-        self, _, patched_nrf_url, patch_check_output
-    ):
-        self.harness.add_storage(storage_name="config", attach=True)
-        self.harness.add_storage(storage_name="certs", attach=True)
-        root = self.harness.get_filesystem_root(self.container_name)
-        (root / "support/TLS/pcf.pem").write_text(CERTIFICATE)
-        patch_check_output.return_value = POD_IP
-        self.harness.set_can_connect(container=self.container_name, val=True)
-        patched_nrf_url.return_value = VALID_NRF_URL
-        self._create_nrf_relation()
-        database_relation_id = self._create_database_relation_and_populate_data()
-        self.harness.add_relation(
-            relation_name=TLS_RELATION_NAME, remote_app="tls-certificates-operator"
-        )
-        self.harness.container_pebble_ready(self.container_name)
-        self.harness.remove_relation(database_relation_id)
-        self.harness.evaluate_status()
-        self.assertEqual(
-            self.harness.model.unit.status,
-            BlockedStatus("Waiting for database relation"),
-        )
-
-    def test_given_container_can_connect_and_database_relation_is_not_available_when_configure_sdcore_pcf_then_status_is_waiting(  # noqa: E501
-        self,
-    ):
-        self.harness.add_storage(storage_name="certs", attach=True)
-        self.harness.set_can_connect(container=self.container_name, val=True)
-        self._create_database_relation()
-        self._create_nrf_relation()
-        self.harness.add_relation(
-            relation_name=TLS_RELATION_NAME, remote_app="tls-certificates-operator"
-        )
-        self.harness.charm._configure_sdcore_pcf(event=Mock())
-        self.harness.evaluate_status()
-        self.assertEqual(
-            self.harness.model.unit.status,
-            WaitingStatus("Waiting for `database` relation to be available"),
-        )
-
     def test_given_container_can_connect_and_fiveg_nrf_relation_is_not_available_when_configure_sdcore_pcf_then_status_is_waiting(  # noqa: E501
         self,
     ):
         self.harness.add_storage(storage_name="certs", attach=True)
         self.harness.set_can_connect(container=self.container_name, val=True)
-        self._create_database_relation_and_populate_data()
         self._create_nrf_relation()
         self.harness.add_relation(
             relation_name=TLS_RELATION_NAME, remote_app="tls-certificates-operator"
@@ -271,7 +179,6 @@ class TestCharm(unittest.TestCase):
         self.harness.add_storage(storage_name="certs", attach=True)
         self.harness.set_can_connect(container=self.container_name, val=True)
         patched_nrf_url.return_value = VALID_NRF_URL
-        self._create_database_relation_and_populate_data()
         self._create_nrf_relation()
         self.harness.add_relation(
             relation_name=TLS_RELATION_NAME, remote_app="tls-certificates-operator"
@@ -294,7 +201,6 @@ class TestCharm(unittest.TestCase):
         self.harness.add_storage(storage_name="config", attach=True)
         self.harness.set_can_connect(container=self.container_name, val=True)
         patched_nrf_url.return_value = VALID_NRF_URL
-        self._create_database_relation_and_populate_data()
         self._create_nrf_relation()
         self.harness.add_relation(
             relation_name=TLS_RELATION_NAME, remote_app="tls-certificates-operator"
@@ -321,7 +227,6 @@ class TestCharm(unittest.TestCase):
         patch_check_output.return_value = POD_IP
         self.harness.set_can_connect(container=self.container_name, val=True)
         patched_nrf_url.return_value = VALID_NRF_URL
-        self._create_database_relation_and_populate_data()
         self._create_nrf_relation()
         self._create_certificates_relation()
 
@@ -354,7 +259,6 @@ class TestCharm(unittest.TestCase):
         config_modification_time = (root / f"etc/pcf/{CONFIG_FILE_NAME}").stat().st_mtime
         patch_check_output.return_value = POD_IP
         patched_nrf_url.return_value = VALID_NRF_URL
-        self._create_database_relation_and_populate_data()
         self._create_nrf_relation()
         self.harness.add_relation(
             relation_name=TLS_RELATION_NAME, remote_app="tls-certificates-operator"
@@ -384,7 +288,6 @@ class TestCharm(unittest.TestCase):
         (root / f"etc/pcf/{CONFIG_FILE_NAME}").write_text("super different config file content")
         patch_check_output.return_value = POD_IP
         patch_nrf_url.return_value = VALID_NRF_URL
-        self._create_database_relation_and_populate_data()
         self._create_nrf_relation()
         self._create_certificates_relation()
         provider_certificate = Mock(ProviderCertificate)
@@ -412,7 +315,6 @@ class TestCharm(unittest.TestCase):
         (root / "support/TLS/pcf.csr").write_text(CSR)
         patch_check_output.return_value = POD_IP
         patch_nrf_url.return_value = VALID_NRF_URL
-        self._create_database_relation_and_populate_data()
         self._create_nrf_relation()
         self._create_certificates_relation()
 
@@ -467,7 +369,6 @@ class TestCharm(unittest.TestCase):
         self.harness.set_can_connect(container=self.container_name, val=True)
         patched_nrf_url.return_value = VALID_NRF_URL
         self._create_nrf_relation()
-        self._create_database_relation_and_populate_data()
         self._create_certificates_relation()
         self.harness.container_pebble_ready(container_name=self.container_name)
         self.harness.evaluate_status()
@@ -485,7 +386,6 @@ class TestCharm(unittest.TestCase):
         (root / "support/TLS/pcf.pem").write_text(CERTIFICATE)
         patch_check_output.return_value = "".encode()
         self._create_nrf_relation()
-        self._create_database_relation_and_populate_data()
         self.harness.add_relation(
             relation_name=TLS_RELATION_NAME, remote_app="tls-certificates-operator"
         )
@@ -517,7 +417,6 @@ class TestCharm(unittest.TestCase):
         patch_nrf_url.return_value = VALID_NRF_URL
         csr = b"whatever csr content"
         patch_generate_csr.return_value = csr
-        self._create_database_relation_and_populate_data()
         self._create_nrf_relation()
         self._create_certificates_relation()
 
@@ -557,7 +456,6 @@ class TestCharm(unittest.TestCase):
         patch_check_output.return_value = b"1.1.1.1"
         patched_nrf_url.return_value = VALID_NRF_URL
         self.harness.set_can_connect(container=self.container_name, val=True)
-        self._create_database_relation_and_populate_data()
         self._create_nrf_relation()
         self._create_certificates_relation()
 
@@ -587,7 +485,6 @@ class TestCharm(unittest.TestCase):
         patched_nrf_url.return_value = VALID_NRF_URL
         self.harness.set_can_connect(container=self.container_name, val=True)
 
-        self._create_database_relation_and_populate_data()
         self._create_nrf_relation()
         self._create_certificates_relation()
 
@@ -625,7 +522,6 @@ class TestCharm(unittest.TestCase):
         (root / "support/TLS/pcf.csr").write_text(CSR)
         patch_check_output.return_value = b"1.1.1.1"
         patched_nrf_url.return_value = VALID_NRF_URL
-        self._create_database_relation_and_populate_data()
         self._create_nrf_relation()
         self._create_certificates_relation()
 
