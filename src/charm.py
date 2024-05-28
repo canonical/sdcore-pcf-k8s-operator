@@ -440,7 +440,9 @@ class PCFOperatorCharm(CharmBase):
 
     def _storage_is_attached(self) -> bool:
         """Return whether storage is attached to the workload container."""
-        return self._container.exists(path=BASE_CONFIG_PATH)
+        return self._container.exists(path=BASE_CONFIG_PATH) and self._container.exists(
+            path=CERTS_DIR_PATH
+        )
 
     @property
     def _pebble_layer(self) -> Layer:
