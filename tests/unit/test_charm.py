@@ -2,6 +2,7 @@
 # See LICENSE file for licensing details.
 
 import logging
+from typing import Generator
 from unittest.mock import Mock, PropertyMock, patch
 
 import pytest
@@ -70,7 +71,7 @@ class TestCharm:
         self.mock_generate_csr.return_value = CSR.encode()
 
     @pytest.fixture(autouse=True)
-    def harness(self, setUp, request, mock_default_values):
+    def harness(self, setUp, request):
         self.harness = testing.Harness(PCFOperatorCharm)
         self.harness.set_model_name(name="whatever")
         self.harness.set_leader(is_leader=True)
@@ -90,6 +91,14 @@ class TestCharm:
         provider_certificate.certificate = CERTIFICATE
         provider_certificate.csr = CSR
         self.mock_get_certificates.return_value = [provider_certificate]
+
+    @pytest.fixture()
+    def nrf_relation_id(self) -> Generator[int, None, None]:
+        relation_id = self.harness.add_relation(  # type:ignore
+            relation_name=NRF_RELATION_NAME, remote_app="nrf-operator"
+        )
+        self.harness.add_relation_unit(relation_id=relation_id, remote_unit_name="nrf-operator/0")  # type:ignore
+        yield relation_id
 
     @staticmethod
     def _get_metadata() -> dict:
@@ -127,13 +136,6 @@ class TestCharm:
         )
         return database_relation_id
 
-    def _create_nrf_relation(self) -> int:
-        relation_id = self.harness.add_relation(  # type:ignore
-            relation_name=NRF_RELATION_NAME, remote_app="nrf-operator"
-        )
-        self.harness.add_relation_unit(relation_id=relation_id, remote_unit_name="nrf-operator/0")  # type:ignore
-        return relation_id
-
     def _create_certificates_relation(self):
         relation_id = self.harness.add_relation(  # type:ignore
             relation_name=TLS_RELATION_NAME, remote_app="tls-certificates-operator"
@@ -142,54 +144,48 @@ class TestCharm:
             relation_id=relation_id, remote_unit_name="tls-certificates-operator/0"
         )
 
-    def test_given_container_cant_connect_when_configure_sdcore_pcf_then_status_is_waiting(self):
+    def test_given_container_cant_connect_when_collect_status_pcf_then_status_is_waiting(self):
         self.harness.set_can_connect(container=self.container_name, val=False)
 
-        self.harness.charm._configure_sdcore_pcf(event=Mock())
         self.harness.evaluate_status()
 
         assert self.harness.model.unit.status == WaitingStatus("Waiting for container to be ready")
 
-    def test_given_container_can_connect_and_database_relation_is_not_created_when_configure_sdcore_pcf_then_status_is_blocked(  # noqa: E501
+    def test_given_container_can_connect_and_database_relation_is_not_created_when_collect_status_pcf_then_status_is_blocked(  # noqa: E501
         self,
     ):
         self.harness.set_can_connect(container=self.container_name, val=True)
 
-        self.harness.charm._configure_sdcore_pcf(event=Mock())
         self.harness.evaluate_status()
 
         assert self.harness.model.unit.status == BlockedStatus("Waiting for database relation")
 
-    def test_given_container_can_connect_and_fiveg_nrf_relation_is_not_created_when_configure_sdcore_pcf_then_status_is_blocked(  # noqa: E501
+    def test_given_container_can_connect_and_fiveg_nrf_relation_is_not_created_when_collect_status_then_status_is_blocked(  # noqa: E501
         self,
     ):
         self.harness.set_can_connect(container=self.container_name, val=True)
         self._create_database_relation()
 
-        self.harness.charm._configure_sdcore_pcf(event=Mock())
         self.harness.evaluate_status()
 
         assert self.harness.model.unit.status == BlockedStatus("Waiting for fiveg_nrf relation")
 
-    def test_given_container_can_connect_and_certificates_relation_is_not_created_when_configure_sdcore_pcf_then_status_is_blocked(  # noqa: E501
-        self,
+    def test_given_container_can_connect_and_certificates_relation_is_not_created_when_collect_status_then_status_is_blocked(  # noqa: E501
+        self, nrf_relation_id
     ):
         self.harness.set_can_connect(container=self.container_name, val=True)
         self._create_database_relation()
-        self._create_nrf_relation()
 
-        self.harness.charm._configure_sdcore_pcf(event=Mock())
         self.harness.evaluate_status()
 
         assert self.harness.model.unit.status == BlockedStatus("Waiting for certificates relation")
 
     def test_given_pcf_charm_in_active_state_when_nrf_relation_breaks_then_status_is_blocked(
-        self, add_storage
+        self, add_storage, mock_default_values, nrf_relation_id
     ):
         self.harness.set_can_connect(container=self.container_name, val=True)
         root = self.harness.get_filesystem_root(self.container_name)
         (root / CERTIFICATE_PATH).write_text(CERTIFICATE)
-        nrf_relation_id = self._create_nrf_relation()
         self._create_database_relation_and_populate_data()
         self._create_certificates_relation()
         self.harness.container_pebble_ready(self.container_name)
@@ -200,12 +196,11 @@ class TestCharm:
         assert self.harness.model.unit.status == BlockedStatus("Waiting for fiveg_nrf relation")
 
     def test_given_pcf_charm_in_active_state_when_database_relation_breaks_then_status_is_blocked(
-        self, add_storage
+        self, add_storage, mock_default_values, nrf_relation_id
     ):
         self.harness.set_can_connect(container=self.container_name, val=True)
         root = self.harness.get_filesystem_root(self.container_name)
         (root / CERTIFICATE_PATH).write_text(CERTIFICATE)
-        self._create_nrf_relation()
         database_relation_id = self._create_database_relation_and_populate_data()
         self._create_certificates_relation()
         self.harness.container_pebble_ready(self.container_name)
@@ -215,29 +210,25 @@ class TestCharm:
 
         assert self.harness.model.unit.status == BlockedStatus("Waiting for database relation")
 
-    def test_given_container_can_connect_and_database_relation_is_not_available_when_configure_sdcore_pcf_then_status_is_waiting(  # noqa: E501
-        self, add_storage
+    def test_given_container_can_connect_and_database_relation_is_not_available_when_collect_status_then_status_is_waiting(  # noqa: E501
+        self, add_storage, nrf_relation_id
     ):
         self.harness.set_can_connect(container=self.container_name, val=True)
         self._create_database_relation()
-        self._create_nrf_relation()
         self._create_certificates_relation()
 
-        self.harness.charm._configure_sdcore_pcf(event=Mock())
         self.harness.evaluate_status()
 
         assert self.harness.model.unit.status == WaitingStatus("Waiting for `database` relation to be available")  # noqa: E501
 
-    def test_given_container_can_connect_and_fiveg_nrf_relation_is_not_available_when_configure_sdcore_pcf_then_status_is_waiting(  # noqa: E501
-        self, add_storage
+    def test_given_container_can_connect_and_fiveg_nrf_relation_is_not_available_when_collect_status_then_status_is_waiting(  # noqa: E501
+        self, add_storage, mock_default_values, nrf_relation_id
     ):
-        self.harness.set_can_connect(container=self.container_name, val=True)
         self._create_database_relation_and_populate_data()
-        self._create_nrf_relation()
         self._create_certificates_relation()
         self.mock_nrf_url.return_value = None
+        self.harness.container_pebble_ready(self.container_name)
 
-        self.harness.charm._configure_sdcore_pcf(event=Mock())
         self.harness.evaluate_status()
 
         assert self.harness.model.unit.status == WaitingStatus("Waiting for NRF endpoint to be available")  # noqa: E501
@@ -249,42 +240,72 @@ class TestCharm:
             "config",
         ]
     )
-    def test_given_container_storage_is_not_attached_when_configure_sdcore_pcf_then_status_is_waiting(  # noqa: E501
-        self, storage_name
+    def test_given_container_storage_is_not_attached_when_collect_status_then_status_is_waiting(  # noqa: E501
+        self, storage_name, nrf_relation_id
     ):
         self.harness.set_can_connect(container=self.container_name, val=True)
         self.harness.add_storage(storage_name=storage_name, attach=True)
         self._create_database_relation_and_populate_data()
-        self._create_nrf_relation()
         self._create_certificates_relation()
 
-        self.harness.charm._configure_sdcore_pcf(event=Mock())
         self.harness.evaluate_status()
 
         assert self.harness.model.unit.status == WaitingStatus("Waiting for the storage to be attached")  # noqa: E501
 
-    def test_given_certificate_is_not_stored_when_configure_sdcore_pcf_then_status_is_waiting(  # noqa: E501
-        self, add_storage
+    def test_given_certificate_is_not_stored_when_collect_status_then_status_is_waiting(  # noqa: E501
+        self, add_storage, mock_default_values, nrf_relation_id
     ):
         self.harness.set_can_connect(container=self.container_name, val=True)
         self._create_database_relation_and_populate_data()
-        self._create_nrf_relation()
         self._create_certificates_relation()
 
-        self.harness.charm._configure_sdcore_pcf(event=Mock())
         self.harness.evaluate_status()
 
         assert self.harness.model.unit.status == WaitingStatus("Waiting for certificates to be stored")  # noqa: E501
 
+    def test_given_config_file_is_written_when_collect_status_is_called_then_status_is_active(  # noqa: E501
+        self, add_storage, get_default_certificate, mock_default_values, nrf_relation_id
+    ):
+        root = self.harness.get_filesystem_root(self.container_name)
+        (root / CERTIFICATE_PATH).write_text(CERTIFICATE)
+        (root / CSR_PATH).write_text(CSR)
+        self._create_database_relation_and_populate_data()
+        self._create_certificates_relation()
+        self.harness.container_pebble_ready(self.container_name)
+
+        self.harness.evaluate_status()
+
+        assert self.harness.model.unit.status == ActiveStatus()
+
+    def test_given_ip_not_available_when_collect_status_then_status_is_waiting(
+        self, add_storage, nrf_relation_id
+    ):
+        root = self.harness.get_filesystem_root(self.container_name)
+        (root / CERTIFICATE_PATH).write_text(CERTIFICATE)
+        self.mock_check_output.return_value = "".encode()
+        self._create_database_relation_and_populate_data()
+        self._create_certificates_relation()
+        self.harness.container_pebble_ready(self.container_name)
+
+        self.harness.evaluate_status()
+
+        assert self.harness.model.unit.status == WaitingStatus("Waiting for pod IP address to be available")  # noqa: E501
+
+    def test_given_not_leader_when_collect_status_then_status_is_blocked(self):
+        self.harness.set_leader(is_leader=False)
+
+        self.harness.evaluate_status()
+
+        assert self.harness.model.unit.status == BlockedStatus("Scaling is not implemented for this charm")  # noqa: E501
+
     def test_given_config_file_is_not_written_when_configure_sdcore_pcf_is_called_then_config_file_is_written_with_expected_content(  # noqa: E501
-        self, add_storage, get_default_certificate
+        self, add_storage, get_default_certificate, mock_default_values, nrf_relation_id
     ):
         self.harness.set_can_connect(container=self.container_name, val=True)
         root = self.harness.get_filesystem_root(self.container_name)
         (root / CERTIFICATE_PATH).write_text(CERTIFICATE)
         (root / CSR_PATH).write_text(CSR)
         self._create_database_relation_and_populate_data()
-        self._create_nrf_relation()
         self._create_certificates_relation()
 
         self.harness.charm._configure_sdcore_pcf(event=Mock())
@@ -293,7 +314,7 @@ class TestCharm:
         assert (root / f"etc/pcf/{CONFIG_FILE_NAME}").read_text() == expected_config_file_content
 
     def test_given_config_file_is_written_and_is_not_changed_when_configure_sdcore_pcf_is_called_then_config_file_is_not_written(  # noqa: E501
-        self, add_storage
+        self, add_storage, mock_default_values, nrf_relation_id
     ):
         root = self.harness.get_filesystem_root(self.container_name)
         (root / CERTIFICATE_PATH).write_text(CERTIFICATE)
@@ -302,7 +323,6 @@ class TestCharm:
         )
         config_modification_time = (root / f"etc/pcf/{CONFIG_FILE_NAME}").stat().st_mtime
         self._create_database_relation_and_populate_data()
-        self._create_nrf_relation()
         self._create_certificates_relation()
         self.harness.charm._certificate_is_stored = Mock(return_value=True)
 
@@ -311,14 +331,13 @@ class TestCharm:
         assert (root / f"etc/pcf/{CONFIG_FILE_NAME}").stat().st_mtime == config_modification_time
 
     def test_given_config_file_exists_and_is_changed_when_configure_pcf_then_config_file_is_updated(  # noqa: E501
-        self, add_storage, get_default_certificate
+        self, add_storage, get_default_certificate, mock_default_values, nrf_relation_id
     ):
         root = self.harness.get_filesystem_root(self.container_name)
         (root / CSR_PATH).write_text(CSR)
         (root / CERTIFICATE_PATH).write_text(CERTIFICATE)
         (root / f"etc/pcf/{CONFIG_FILE_NAME}").write_text("super different config file content")
         self._create_database_relation_and_populate_data()
-        self._create_nrf_relation()
         self._create_certificates_relation()
 
         self.harness.container_pebble_ready(self.container_name)
@@ -327,13 +346,12 @@ class TestCharm:
         assert (root / f"etc/pcf/{CONFIG_FILE_NAME}").read_text() == expected_content.strip()
 
     def test_given_config_files_and_relations_are_created_when_configure_sdcore_pcf_is_called_then_expected_plan_is_applied(  # noqa: E501
-        self, add_storage, get_default_certificate
+        self, add_storage, get_default_certificate, mock_default_values, nrf_relation_id
     ):
         root = self.harness.get_filesystem_root(self.container_name)
         (root / CERTIFICATE_PATH).write_text(CERTIFICATE)
         (root / CSR_PATH).write_text(CSR)
         self._create_database_relation_and_populate_data()
-        self._create_nrf_relation()
         self._create_certificates_relation()
 
         self.harness.container_pebble_ready(self.container_name)
@@ -358,43 +376,14 @@ class TestCharm:
         updated_plan = self.harness.get_container_pebble_plan(self.container_name).to_dict()
         assert expected_plan == updated_plan
 
-    def test_given_config_file_is_written_when_configure_sdcore_pcf_is_called_then_status_is_active(  # noqa: E501
-        self, add_storage, get_default_certificate
-    ):
-        root = self.harness.get_filesystem_root(self.container_name)
-        (root / CERTIFICATE_PATH).write_text(CERTIFICATE)
-        (root / CSR_PATH).write_text(CSR)
-        self._create_nrf_relation()
-        self._create_database_relation_and_populate_data()
-        self._create_certificates_relation()
-
-        self.harness.container_pebble_ready(container_name=self.container_name)
-        self.harness.evaluate_status()
-
-        assert self.harness.model.unit.status == ActiveStatus()
-
-    def test_given_ip_not_available_when_configure_then_status_is_waiting(self, add_storage):
-        root = self.harness.get_filesystem_root(self.container_name)
-        (root / CERTIFICATE_PATH).write_text(CERTIFICATE)
-        self.mock_check_output.return_value = "".encode()
-        self._create_nrf_relation()
-        self._create_database_relation_and_populate_data()
-        self._create_certificates_relation()
-
-        self.harness.container_pebble_ready(container_name=self.container_name)
-        self.harness.evaluate_status()
-
-        assert self.harness.model.unit.status == WaitingStatus("Waiting for pod IP address to be available")  # noqa: E501
-
     def test_given_can_connect_when_on_certificates_relation_created_then_private_key_is_generated(
-        self, add_storage
+        self, add_storage, mock_default_values, nrf_relation_id
     ):
         root = self.harness.get_filesystem_root(self.container_name)
         self.harness.set_can_connect(container=self.container_name, val=True)
         self.mock_generate_private_key.return_value = PRIVATE_KEY.encode()
         self.mock_generate_csr.return_value = CSR.encode()
         self._create_database_relation_and_populate_data()
-        self._create_nrf_relation()
         self._create_certificates_relation()
 
         assert (root / PRIVATE_KEY_PATH).read_text() == PRIVATE_KEY
@@ -415,36 +404,65 @@ class TestCharm:
             (root / PRIVATE_KEY_PATH).read_text()
             (root / CSR_PATH).read_text()
 
-    def test_given_private_key_exists_when_on_certificates_relation_joined_then_csr_is_generated(
+    def test_given_cannot_connect_when_on_certificates_relation_broken_then_certificates_are_not_removed(  # noqa: E501
         self, add_storage
+    ):
+        self.harness.set_can_connect(container=self.container_name, val=False)
+        root = self.harness.get_filesystem_root(self.container_name)
+        (root / PRIVATE_KEY_PATH).write_text(PRIVATE_KEY)
+        (root / CSR_PATH).write_text(CSR)
+        (root / CERTIFICATE_PATH).write_text(CERTIFICATE)
+
+        self.harness.charm._on_certificates_relation_broken(event=Mock())
+
+        container_certificate = (root / CERTIFICATE_PATH).read_text()
+        container_private_key = (root / PRIVATE_KEY_PATH).read_text()
+        container_csr = (root / CSR_PATH).read_text()
+        assert container_certificate == CERTIFICATE
+        assert container_private_key == PRIVATE_KEY
+        assert container_csr == CSR
+
+    def test_given_certificates_does_not_exist_on_certificates_relation_broken_then_no_exception_is_raised_and_files_does_not_exist(  # noqa: E501
+        self, add_storage
+    ):
+        self.harness.set_can_connect(container=self.container_name, val=True)
+
+        self.harness.charm._on_certificates_relation_broken(event=Mock())
+
+        root = self.harness.get_filesystem_root(self.container_name)
+        with pytest.raises(FileNotFoundError):
+            (root / CERTIFICATE_PATH).read_text()
+            (root / PRIVATE_KEY_PATH).read_text()
+            (root / CSR_PATH).read_text()
+
+    def test_given_private_key_exists_when_on_certificates_relation_joined_then_csr_is_generated(
+        self, add_storage, mock_default_values, nrf_relation_id
     ):
         root = self.harness.get_filesystem_root(self.container_name)
         (root / PRIVATE_KEY_PATH).write_text(PRIVATE_KEY)
         self.mock_generate_csr.return_value = CSR.encode()
         self.harness.set_can_connect(container=self.container_name, val=True)
         self._create_database_relation_and_populate_data()
-        self._create_nrf_relation()
 
         self._create_certificates_relation()
 
         assert (root / CSR_PATH).read_text() == CSR
 
     def test_given_private_key_exists_and_cert_not_yet_requested_when_on_certificates_relation_joined_then_cert_is_requested(  # noqa: E501
-        self, add_storage
+        self, add_storage, mock_default_values, nrf_relation_id
     ):
         root = self.harness.get_filesystem_root(self.container_name)
         (root / PRIVATE_KEY_PATH).write_text(PRIVATE_KEY)
         self.mock_generate_csr.return_value = CSR.encode()
         self.harness.set_can_connect(container=self.container_name, val=True)
         self._create_database_relation_and_populate_data()
-        self._create_nrf_relation()
 
         self._create_certificates_relation()
 
         self.mock_request_certificate.assert_called_with(certificate_signing_request=CSR.encode())
 
     def test_given_cert_already_stored_when_on_certificates_relation_joined_then_cert_is_not_requested(  # noqa: E501
-        self, add_storage
+        self, add_storage, mock_default_values, nrf_relation_id
     ):
         self.harness.set_can_connect(container=self.container_name, val=True)
         root = self.harness.get_filesystem_root(self.container_name)
@@ -452,20 +470,18 @@ class TestCharm:
         (root / CERTIFICATE_PATH).write_text(CERTIFICATE)
         (root / CSR_PATH).write_text(CSR)
         self._create_database_relation_and_populate_data()
-        self._create_nrf_relation()
 
         self._create_certificates_relation()
 
         self.mock_request_certificate.assert_not_called()
 
     def test_given_csr_matches_stored_one_when_certificate_available_then_certificate_is_pushed(
-        self, add_storage, get_default_certificate
+        self, add_storage, get_default_certificate, mock_default_values, nrf_relation_id
     ):
         root = self.harness.get_filesystem_root(self.container_name)
         (root / PRIVATE_KEY_PATH).write_text(PRIVATE_KEY)
         (root / CSR_PATH).write_text(CSR)
         self._create_database_relation_and_populate_data()
-        self._create_nrf_relation()
         self._create_certificates_relation()
 
         self.harness.container_pebble_ready(self.container_name)
@@ -473,17 +489,16 @@ class TestCharm:
         assert (root / CERTIFICATE_PATH).read_text() == CERTIFICATE
 
     def test_given_csr_doesnt_match_stored_one_when_certificate_available_then_certificate_is_not_pushed(  # noqa: E501
-        self, add_storage
+        self, add_storage, nrf_relation_id
     ):
         root = self.harness.get_filesystem_root(self.container_name)
         (root / PRIVATE_KEY_PATH).write_text(PRIVATE_KEY)
         (root / CSR_PATH).write_text(CSR)
-        self._create_nrf_relation()
-        self._create_certificates_relation()
         provider_certificate = Mock(ProviderCertificate)
         provider_certificate.certificate = CERTIFICATE
         provider_certificate.csr = "Relation CSR content (different from stored one)"
         self.mock_get_certificates.return_value = [provider_certificate]
+        self._create_certificates_relation()
 
         self.harness.container_pebble_ready(self.container_name)
 
@@ -499,6 +514,20 @@ class TestCharm:
         event.certificate = "Relation certificate content (different from stored)"
         self.mock_generate_csr.return_value = CSR.encode()
         self.harness.set_can_connect(container=self.container_name, val=True)
+
+        self.harness.charm._on_certificate_expiring(event=event)
+
+        self.mock_request_certificate.assert_not_called()
+
+    def test_given_container_cannot_connect_when_certificate_expiring_then_certificate_is_not_requested(  # noqa: E501
+        self, add_storage
+    ):
+        self.harness.set_can_connect(container=self.container_name, val=False)
+        root = self.harness.get_filesystem_root(self.container_name)
+        (root / CERTIFICATE_PATH).write_text(CERTIFICATE)
+        event = Mock()
+        event.certificate = "Relation certificate content (different from stored)"
+        self.mock_generate_csr.return_value = CSR.encode()
 
         self.harness.charm._on_certificate_expiring(event=event)
 
