@@ -502,12 +502,10 @@ class PCFOperatorCharm(CharmBase):
         return bool(self._nrf_requires.nrf_url)
 
     def _storage_is_attached(self) -> bool:
-        """Return whether storage is attached to the workload container.
-
-        Returns:
-            bool: Whether storage is attached.
-        """
-        return self._container.exists(path=BASE_CONFIG_PATH)
+        """Return whether storage is attached to the workload container."""
+        return self._container.exists(path=BASE_CONFIG_PATH) and self._container.exists(
+            path=CERTS_DIR_PATH
+        )
 
     @property
     def _pebble_layer(self) -> Layer:
