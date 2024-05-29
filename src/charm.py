@@ -9,7 +9,6 @@ from ipaddress import IPv4Address
 from subprocess import check_output
 from typing import Optional
 
-from charms.data_platform_libs.v0.data_interfaces import DatabaseRequires  # type: ignore[import]
 from charms.loki_k8s.v1.loki_push_api import LogForwarder  # type: ignore[import]
 from charms.sdcore_nrf_k8s.v0.fiveg_nrf import NRFRequires  # type: ignore[import]
 from charms.tls_certificates_interface.v3.tls_certificates import (  # type: ignore[import]
@@ -37,8 +36,6 @@ logger = logging.getLogger(__name__)
 BASE_CONFIG_PATH = "/etc/pcf"
 CONFIG_FILE_NAME = "pcfcfg.yaml"
 PCF_SBI_PORT = 29507
-DATABASE_NAME = "free5gc"
-DATABASE_RELATION_NAME = "database"
 NRF_RELATION_NAME = "fiveg_nrf"
 TLS_RELATION_NAME = "certificates"
 CERTS_DIR_PATH = "/support/TLS"  # Certificate paths are hardcoded in PCF code
@@ -59,17 +56,12 @@ class PCFOperatorCharm(CharmBase):
         self._container_name = self._service_name = "pcf"
         self._container = self.unit.get_container(self._container_name)
 
-        self._database = DatabaseRequires(
-            self, relation_name="database", database_name=DATABASE_NAME
-        )
         self._nrf_requires = NRFRequires(charm=self, relation_name=NRF_RELATION_NAME)
         self.unit.set_ports(PCF_SBI_PORT)
         self._certificates = TLSCertificatesRequiresV3(self, "certificates")
         self._logging = LogForwarder(charm=self, relation_name=LOGGING_RELATION_NAME)
         self.framework.observe(self.on.update_status, self._configure_sdcore_pcf)
         self.framework.observe(self.on.collect_unit_status, self._on_collect_unit_status)
-        self.framework.observe(self.on.database_relation_joined, self._configure_sdcore_pcf)
-        self.framework.observe(self._database.on.database_created, self._configure_sdcore_pcf)
         self.framework.observe(self.on.fiveg_nrf_relation_joined, self._configure_sdcore_pcf)
         self.framework.observe(self._nrf_requires.on.nrf_available, self._configure_sdcore_pcf)
         self.framework.observe(self.on.pcf_pebble_ready, self._configure_sdcore_pcf)
@@ -85,11 +77,7 @@ class PCFOperatorCharm(CharmBase):
         )
 
     def _on_collect_unit_status(self, event: CollectStatusEvent):  # noqa C901
-        """Check the unit status and set to Unit when CollectStatusEvent is fired.
-
-        Args:
-            event: CollectStatusEvent
-        """
+        """Check the unit status and set to Unit when CollectStatusEvent is fired."""
         if not self.unit.is_leader():
             # NOTE: In cases where leader status is lost before the charm is
             # finished processing all teardown events, this prevents teardown
@@ -103,16 +91,10 @@ class PCFOperatorCharm(CharmBase):
             event.add_status(WaitingStatus("Waiting for container to be ready"))
             return
 
-        for relation in [DATABASE_RELATION_NAME, NRF_RELATION_NAME, TLS_RELATION_NAME]:
+        for relation in [NRF_RELATION_NAME, TLS_RELATION_NAME]:
             if not self._relation_created(relation):
                 event.add_status(BlockedStatus(f"Waiting for {relation} relation"))
                 return
-
-        if not self._database_is_available():
-            event.add_status(
-                WaitingStatus(f"Waiting for `{DATABASE_RELATION_NAME}` relation to be available")
-            )
-            return
 
         if not self._nrf_is_available():
             event.add_status(WaitingStatus("Waiting for NRF endpoint to be available"))
@@ -137,11 +119,7 @@ class PCFOperatorCharm(CharmBase):
         event.add_status(ActiveStatus())
 
     def _pcf_service_is_running(self) -> bool:
-        """Check if the PCF service is running.
-
-        Returns:
-            bool: Whether the PCF service is running.
-        """
+        """Check if the PCF service is running."""
         if not self._container.can_connect():
             return False
         try:
@@ -159,12 +137,9 @@ class PCFOperatorCharm(CharmBase):
         if not self._container.can_connect():
             return False
 
-        for relation in [DATABASE_RELATION_NAME, NRF_RELATION_NAME, TLS_RELATION_NAME]:
+        for relation in [NRF_RELATION_NAME, TLS_RELATION_NAME]:
             if not self._relation_created(relation):
                 return False
-
-        if not self._database_is_available():
-            return False
 
         if not self._nrf_is_available():
             return False
@@ -247,8 +222,6 @@ class PCFOperatorCharm(CharmBase):
             content (str): desired config file content
         """
         return self._render_config_file(
-            database_name=DATABASE_NAME,
-            database_url=self._get_database_data()["uris"].split(",")[0],
             nrf_url=self._nrf_requires.nrf_url,
             pcf_sbi_port=PCF_SBI_PORT,
             pod_ip=_get_pod_ip(),  # type: ignore[arg-type]
@@ -410,8 +383,6 @@ class PCFOperatorCharm(CharmBase):
     def _render_config_file(
         self,
         *,
-        database_name: str,
-        database_url: str,
         nrf_url: str,
         pcf_sbi_port: int,
         pod_ip: str,
@@ -420,8 +391,6 @@ class PCFOperatorCharm(CharmBase):
         """Render the config file content.
 
         Args:
-            database_name (str): name of the DB.
-            database_url (str): URL of the DB.
             nrf_url (str): NRF URL.
             pcf_sbi_port (int): PCF SBI port.
             pod_ip (str): Pod IPv4.
@@ -433,8 +402,6 @@ class PCFOperatorCharm(CharmBase):
         jinja2_env = Environment(loader=FileSystemLoader("src/templates"))
         template = jinja2_env.get_template("pcfcfg.yaml.j2")
         return template.render(
-            database_name=database_name,
-            database_url=database_url,
             nrf_url=nrf_url,
             pcf_sbi_port=pcf_sbi_port,
             pod_ip=pod_ip,
@@ -442,11 +409,7 @@ class PCFOperatorCharm(CharmBase):
         )
 
     def _config_file_is_written(self) -> bool:
-        """Return whether the config file was written to the workload container.
-
-        Returns:
-            bool: Whether the config file was written.
-        """
+        """Return whether the config file was written to the workload container."""
         return bool(self._container.exists(f"{BASE_CONFIG_PATH}/{CONFIG_FILE_NAME}"))
 
     def _config_file_content_matches(self, content: str) -> bool:
@@ -455,8 +418,6 @@ class PCFOperatorCharm(CharmBase):
         Args:
             content (str): Config file content.
 
-        Returns:
-            bool: Whether the config file content matches.
         """
         existing_content = self._container.pull(path=f"{BASE_CONFIG_PATH}/{CONFIG_FILE_NAME}")
         return existing_content.read() == content
@@ -466,32 +427,8 @@ class PCFOperatorCharm(CharmBase):
 
         Args:
             relation_name (str): Relation name.
-
-        Returns:
-            bool: Whether the relation was created.
         """
         return bool(self.model.get_relation(relation_name))
-
-    def _get_database_data(self) -> dict:
-        """Return the database data.
-
-        Returns:
-            dict: The database data.
-
-        Raises:
-            RuntimeError: If the database is not available.
-        """
-        if not self._database_is_available():
-            raise RuntimeError("Database is not available")
-        return self._database.fetch_relation_data()[self._database.relations[0].id]
-
-    def _database_is_available(self) -> bool:
-        """Return whether database relation is available.
-
-        Returns:
-            bool: Whether database relation is available.
-        """
-        return bool(self._database.is_resource_created())
 
     def _nrf_is_available(self) -> bool:
         """Return whether the NRF endpoint is available.
@@ -509,11 +446,6 @@ class PCFOperatorCharm(CharmBase):
 
     @property
     def _pebble_layer(self) -> Layer:
-        """Return pebble layer.
-
-        Returns:
-            Layer: Pebble Layer
-        """
         return Layer(
             {
                 "summary": "pcf layer",
@@ -531,11 +463,6 @@ class PCFOperatorCharm(CharmBase):
 
     @property
     def _environment_variables(self) -> dict:
-        """Return environment variables.
-
-        Returns:
-            dict: Environment variables.
-        """
         return {
             "GRPC_GO_LOG_VERBOSITY_LEVEL": "99",
             "GRPC_GO_LOG_SEVERITY_LEVEL": "info",
@@ -547,11 +474,7 @@ class PCFOperatorCharm(CharmBase):
 
 
 def _get_pod_ip() -> Optional[str]:
-    """Return the pod IP using juju client.
-
-    Returns:
-        str: The pod IP.
-    """
+    """Return the pod IP using juju client."""
     ip_address = check_output(["unit-get", "private-address"])
     return str(IPv4Address(ip_address.decode().strip())) if ip_address else None
 

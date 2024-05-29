@@ -10,10 +10,10 @@ juju deploy mongodb-k8s --channel=6/beta --trust
 juju deploy sdcore-nrf-k8s --channel=1.5/edge
 juju deploy sdcore-pcf-k8s --channel=1.5/edge 
 
-juju deploy self-signed-certificates
+juju deploy self-signed-certificates --channel=stable
 
-juju integrate sdcore-pcf-k8s mongodb-k8s
-juju integrate sdcore-nrf-k8s self-signed-certificates
+juju integrate sdcore-nrf-k8s self-signed-certificates:certificates
+juju integrate sdcore-nrf-k8s:database mongodb-k8s
 juju integrate sdcore-pcf-k8s:fiveg_nrf sdcore-nrf-k8s:fiveg_nrf
 juju integrate sdcore-pcf-k8s:certificates self-signed-certificates:certificates
 ```

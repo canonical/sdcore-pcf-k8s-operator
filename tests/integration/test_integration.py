@@ -100,7 +100,6 @@ async def test_relate_and_wait_for_active_status(ops_test: OpsTest, deploy):
     assert ops_test.model
     await ops_test.model.integrate(relation1=NRF_APP_NAME, relation2=DATABASE_APP_NAME)
     await ops_test.model.integrate(relation1=NRF_APP_NAME, relation2=TLS_PROVIDER_NAME)
-    await ops_test.model.integrate(relation1=APPLICATION_NAME, relation2=DATABASE_APP_NAME)
     await ops_test.model.integrate(
         relation1=f"{APPLICATION_NAME}:fiveg_nrf", relation2=NRF_APP_NAME
     )
@@ -146,25 +145,4 @@ async def test_restore_tls_and_wait_for_active_status(ops_test: OpsTest, deploy)
     assert ops_test.model
     await _deploy_tls_provider(ops_test)
     await ops_test.model.integrate(relation1=APPLICATION_NAME, relation2=TLS_PROVIDER_NAME)
-    await ops_test.model.wait_for_idle(apps=[APPLICATION_NAME], status="active", timeout=1000)
-
-
-@pytest.mark.skip(
-    reason="Bug in MongoDB: https://github.com/canonical/mongodb-k8s-operator/issues/218"
-)
-@pytest.mark.abort_on_fail
-async def test_remove_database_and_wait_for_blocked_status(ops_test: OpsTest, deploy):
-    assert ops_test.model
-    await ops_test.model.remove_application(DATABASE_APP_NAME, block_until_done=True)
-    await ops_test.model.wait_for_idle(apps=[APPLICATION_NAME], status="blocked", timeout=60)
-
-
-@pytest.mark.skip(
-    reason="Bug in MongoDB: https://github.com/canonical/mongodb-k8s-operator/issues/218"
-)
-@pytest.mark.abort_on_fail
-async def test_restore_database_and_wait_for_active_status(ops_test: OpsTest, deploy):
-    assert ops_test.model
-    await _deploy_database(ops_test)
-    await ops_test.model.integrate(relation1=APPLICATION_NAME, relation2=DATABASE_APP_NAME)
     await ops_test.model.wait_for_idle(apps=[APPLICATION_NAME], status="active", timeout=1000)
