@@ -66,7 +66,8 @@ async def test_relate_and_wait_for_active_status(ops_test: OpsTest, deploy):
     )
     await ops_test.model.integrate(relation1=APPLICATION_NAME, relation2=TLS_CHARM_NAME)
     await ops_test.model.integrate(
-        relation1=f"{APPLICATION_NAME}:sdcore_config", relation2=f"{WEBUI_CHARM_NAME}:sdcore-config"
+        relation1=f"{APPLICATION_NAME}:sdcore_config",
+        relation2=f"{WEBUI_CHARM_NAME}:sdcore-config",
     )
     await ops_test.model.integrate(
         relation1=f"{APPLICATION_NAME}:logging", relation2=GRAFANA_AGENT_CHARM_NAME
@@ -104,7 +105,8 @@ async def test_restore_webui_and_wait_for_active_status(ops_test: OpsTest, deplo
     assert ops_test.model
     await _deploy_webui(ops_test)
     await ops_test.model.integrate(
-        relation1=f"{APPLICATION_NAME}:sdcore_config", relation2=f"{WEBUI_CHARM_NAME}:sdcore-config"
+        relation1=f"{APPLICATION_NAME}:sdcore_config",
+        relation2=f"{WEBUI_CHARM_NAME}:sdcore-config",
     )
     await ops_test.model.wait_for_idle(apps=[APPLICATION_NAME], status="active", timeout=1000)
 
