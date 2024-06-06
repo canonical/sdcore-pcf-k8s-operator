@@ -41,6 +41,8 @@ requires:
     interface: tls-certificates
   logging:
       interface: loki_push_api
+  sdcore_config:
+    interface: sdcore_config
 
 assumes:
   - k8s-api

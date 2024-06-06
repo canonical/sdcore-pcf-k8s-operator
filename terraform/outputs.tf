@@ -22,3 +22,8 @@ output "logging_endpoint" {
   description = "Name of the endpoint used to integrate with the Logging provider."
   value       = "logging"
 }
+
+output "sdcore_config_endpoint" {
+  description = "Name of the endpoint used to integrate with the Webui."
+  value       = "sdcore_config"
+}
