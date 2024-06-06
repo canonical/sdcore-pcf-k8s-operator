@@ -23,5 +23,5 @@ juju integrate sdcore-pcf-k8s:sdcore_config sdcore-webui-k8s:sdcore-config
 
 ## Image
 
-**pcf**: `ghcr.io/canonical/sdcore-pcf:1.4.0`
+**pcf**: `ghcr.io/canonical/sdcore-pcf:1.4.2`
 
