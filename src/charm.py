@@ -65,7 +65,7 @@ class PCFOperatorCharm(CharmBase):
             charm=self, relation_name=SDCORE_CONFIG_RELATION_NAME
         )
         self.unit.set_ports(PCF_SBI_PORT)
-        self._certificates = TLSCertificatesRequiresV3(self, "certificates")
+        self._certificates = TLSCertificatesRequiresV3(self, TLS_RELATION_NAME)
         self._logging = LogForwarder(charm=self, relation_name=LOGGING_RELATION_NAME)
         self.framework.observe(self.on.update_status, self._configure_sdcore_pcf)
         self.framework.observe(self.on.collect_unit_status, self._on_collect_unit_status)
