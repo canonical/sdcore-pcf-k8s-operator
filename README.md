@@ -9,13 +9,16 @@ A Charmed Operator for SD-Core's Policy Control Function (PCF) component for K8s
 juju deploy mongodb-k8s --channel=6/beta --trust
 juju deploy sdcore-nrf-k8s --channel=1.5/edge
 juju deploy sdcore-pcf-k8s --channel=1.5/edge 
-
+juju deploy sdcore-webui-k8s --channel=1.5/edge
 juju deploy self-signed-certificates --channel=stable
 
+juju integrate sdcore-webui-k8s:common_database mongodb-k8s:database
+juju integrate sdcore-webui-k8s:auth_database mongodb-k8s:database
 juju integrate sdcore-nrf-k8s self-signed-certificates:certificates
 juju integrate sdcore-nrf-k8s:database mongodb-k8s
 juju integrate sdcore-pcf-k8s:fiveg_nrf sdcore-nrf-k8s:fiveg_nrf
 juju integrate sdcore-pcf-k8s:certificates self-signed-certificates:certificates
+juju integrate sdcore-pcf-k8s:sdcore_config sdcore-webui-k8s:sdcore-config
 ```
 
 ## Image

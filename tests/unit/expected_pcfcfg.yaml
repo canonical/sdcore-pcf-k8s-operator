@@ -1,6 +1,7 @@
 configuration:
   defaultBdtRefId: BdtPolicyId-
   nrfUri: https://nrf:443
+  webuiUri: sdcore-webui:9876
   pcfName: PCF
   sbi:
     bindingIPv4: 0.0.0.0

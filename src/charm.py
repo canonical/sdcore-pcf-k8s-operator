@@ -7,10 +7,13 @@
 import logging
 from ipaddress import IPv4Address
 from subprocess import check_output
-from typing import Optional
+from typing import List, Optional
 
 from charms.loki_k8s.v1.loki_push_api import LogForwarder  # type: ignore[import]
 from charms.sdcore_nrf_k8s.v0.fiveg_nrf import NRFRequires  # type: ignore[import]
+from charms.sdcore_webui_k8s.v0.sdcore_config import (  # type: ignore[import]
+    SdcoreConfigRequires,
+)
 from charms.tls_certificates_interface.v3.tls_certificates import (  # type: ignore[import]
     CertificateExpiringEvent,
     TLSCertificatesRequiresV3,
@@ -44,6 +47,7 @@ CSR_NAME = "pcf.csr"
 CERTIFICATE_NAME = "pcf.pem"
 CERTIFICATE_COMMON_NAME = "pcf.sdcore"
 LOGGING_RELATION_NAME = "logging"
+SDCORE_CONFIG_RELATION_NAME = "sdcore_config"
 
 
 class PCFOperatorCharm(CharmBase):
@@ -57,8 +61,11 @@ class PCFOperatorCharm(CharmBase):
         self._container = self.unit.get_container(self._container_name)
 
         self._nrf_requires = NRFRequires(charm=self, relation_name=NRF_RELATION_NAME)
+        self._webui_requires = SdcoreConfigRequires(
+            charm=self, relation_name=SDCORE_CONFIG_RELATION_NAME
+        )
         self.unit.set_ports(PCF_SBI_PORT)
-        self._certificates = TLSCertificatesRequiresV3(self, "certificates")
+        self._certificates = TLSCertificatesRequiresV3(self, TLS_RELATION_NAME)
         self._logging = LogForwarder(charm=self, relation_name=LOGGING_RELATION_NAME)
         self.framework.observe(self.on.update_status, self._configure_sdcore_pcf)
         self.framework.observe(self.on.collect_unit_status, self._on_collect_unit_status)
@@ -75,6 +82,48 @@ class PCFOperatorCharm(CharmBase):
         self.framework.observe(
             self._certificates.on.certificate_expiring, self._on_certificate_expiring
         )
+        self.framework.observe(
+            self._webui_requires.on.webui_url_available,
+            self._configure_sdcore_pcf
+        )
+        self.framework.observe(self.on.sdcore_config_relation_joined, self._configure_sdcore_pcf)
+
+    def _configure_sdcore_pcf(self, event: EventBase) -> None:
+        """Handle Juju events.
+
+        This event handler is called for every event that affects the charm state
+        (ex. configuration files, relation data). This method performs a couple of checks
+        to make sure that the workload is ready to be started. Then, it configures the PCF
+        workload and runs the Pebble services.
+
+        Args:
+            event (EventBase): Juju event
+        """
+        if not self.ready_to_configure():
+            logger.info("The preconditions for the configuration are not met yet.")
+            return
+
+        if not self._private_key_is_stored():
+            self._generate_private_key()
+
+        if not self._csr_is_stored():
+            self._request_new_certificate()
+
+        provider_certificate = self._get_current_provider_certificate()
+        if not provider_certificate:
+            return
+
+        if certificate_update_required := self._is_certificate_update_required(
+            provider_certificate
+        ):
+            self._store_certificate(certificate=provider_certificate)
+
+        desired_config_file = self._generate_pcf_config_file()
+        if config_update_required := self._is_config_update_required(desired_config_file):
+            self._push_config_file(content=desired_config_file)
+
+        should_restart = config_update_required or certificate_update_required
+        self._configure_pebble(restart=should_restart)
 
     def _on_collect_unit_status(self, event: CollectStatusEvent):  # noqa C901
         """Check the unit status and set to Unit when CollectStatusEvent is fired."""
@@ -91,13 +140,20 @@ class PCFOperatorCharm(CharmBase):
             event.add_status(WaitingStatus("Waiting for container to be ready"))
             return
 
-        for relation in [NRF_RELATION_NAME, TLS_RELATION_NAME]:
-            if not self._relation_created(relation):
-                event.add_status(BlockedStatus(f"Waiting for {relation} relation"))
-                return
+        if missing_relations := self._missing_relations():
+            event.add_status(
+                BlockedStatus(f"Waiting for {', '.join(missing_relations)} relation(s)")
+            )
+            logger.info("Waiting for %s  relation(s)", ', '.join(missing_relations))
+            return
 
         if not self._nrf_is_available():
             event.add_status(WaitingStatus("Waiting for NRF endpoint to be available"))
+            return
+
+        if not self._webui_url_is_available:
+            event.add_status(WaitingStatus("Waiting for Webui URL to be available"))
+            logger.info("Waiting for Webui URL to be available")
             return
 
         if not self._storage_is_attached():
@@ -137,11 +193,13 @@ class PCFOperatorCharm(CharmBase):
         if not self._container.can_connect():
             return False
 
-        for relation in [NRF_RELATION_NAME, TLS_RELATION_NAME]:
-            if not self._relation_created(relation):
-                return False
+        if self._missing_relations():
+            return False
 
         if not self._nrf_is_available():
+            return False
+
+        if not self._webui_url_is_available:
             return False
 
         if not self._storage_is_attached():
@@ -151,38 +209,6 @@ class PCFOperatorCharm(CharmBase):
             return False
 
         return True
-
-    def _configure_sdcore_pcf(self, event: EventBase) -> None:
-        """Add Pebble layer and manages Juju unit status.
-
-        Args:
-            event (EventBase): Juju event.
-        """
-        if not self.ready_to_configure():
-            logger.info("The preconditions for the configuration are not met yet.")
-            return
-
-        if not self._private_key_is_stored():
-            self._generate_private_key()
-
-        if not self._csr_is_stored():
-            self._request_new_certificate()
-
-        provider_certificate = self._get_current_provider_certificate()
-        if not provider_certificate:
-            return
-
-        if certificate_update_required := self._is_certificate_update_required(
-            provider_certificate
-        ):
-            self._store_certificate(certificate=provider_certificate)
-
-        desired_config_file = self._generate_pcf_config_file()
-        if config_update_required := self._is_config_update_required(desired_config_file):
-            self._push_config_file(content=desired_config_file)
-
-        should_restart = config_update_required or certificate_update_required
-        self._configure_pebble(restart=should_restart)
 
     def _is_certificate_update_required(self, provider_certificate) -> bool:
         """Check the provided certificate and existing certificate.
@@ -226,7 +252,28 @@ class PCFOperatorCharm(CharmBase):
             pcf_sbi_port=PCF_SBI_PORT,
             pod_ip=_get_pod_ip(),  # type: ignore[arg-type]
             scheme="https",
+            webui_uri=self._webui_requires.webui_url,
         )
+
+    def _missing_relations(self) -> List[str]:
+        """Return list of missing relations.
+
+        If all the relations are created, it returns an empty list.
+
+        Returns:
+            list: missing relation names.
+        """
+        missing_relations = []
+        for relation in [NRF_RELATION_NAME,
+                         TLS_RELATION_NAME,
+                         SDCORE_CONFIG_RELATION_NAME]:
+            if not self._relation_created(relation):
+                missing_relations.append(relation)
+        return missing_relations
+
+    @property
+    def _webui_url_is_available(self) -> bool:
+        return bool(self._webui_requires.webui_url)
 
     def _is_config_update_required(self, content: str) -> bool:
         """Decide whether config update is required by checking existence and config content.
@@ -387,6 +434,7 @@ class PCFOperatorCharm(CharmBase):
         pcf_sbi_port: int,
         pod_ip: str,
         scheme: str,
+        webui_uri: str,
     ) -> str:
         """Render the config file content.
 
@@ -395,6 +443,7 @@ class PCFOperatorCharm(CharmBase):
             pcf_sbi_port (int): PCF SBI port.
             pod_ip (str): Pod IPv4.
             scheme (str): SBI interface scheme ("http" or "https")
+            webui_uri (str) : URL of the Webui
 
         Returns:
             str: Config file content.
@@ -406,6 +455,7 @@ class PCFOperatorCharm(CharmBase):
             pcf_sbi_port=pcf_sbi_port,
             pod_ip=pod_ip,
             scheme=scheme,
+            webui_uri=webui_uri,
         )
 
     def _config_file_is_written(self) -> bool:
