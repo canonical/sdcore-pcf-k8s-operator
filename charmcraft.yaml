@@ -44,6 +44,10 @@ requires:
   sdcore_config:
     interface: sdcore_config
 
+provides:
+  metrics-endpoint:
+    interface: prometheus_scrape
+
 assumes:
   - k8s-api
   - juju >= 3.4

@@ -70,7 +70,12 @@ async def test_relate_and_wait_for_active_status(ops_test: OpsTest, deploy):
         relation2=f"{WEBUI_CHARM_NAME}:sdcore-config",
     )
     await ops_test.model.integrate(
-        relation1=f"{APPLICATION_NAME}:logging", relation2=GRAFANA_AGENT_CHARM_NAME
+        relation1=f"{APPLICATION_NAME}:logging",
+        relation2=f"{GRAFANA_AGENT_CHARM_NAME}:logging-provider"
+    )
+    await ops_test.model.integrate(
+        relation1=f"{APPLICATION_NAME}:metrics-endpoint",
+        relation2=f"{GRAFANA_AGENT_CHARM_NAME}:metrics-endpoint"
     )
 
     await ops_test.model.wait_for_idle(

@@ -10,6 +10,9 @@ from subprocess import check_output
 from typing import List, Optional
 
 from charms.loki_k8s.v1.loki_push_api import LogForwarder  # type: ignore[import]
+from charms.prometheus_k8s.v0.prometheus_scrape import (  # type: ignore[import]
+    MetricsEndpointProvider,
+)
 from charms.sdcore_nrf_k8s.v0.fiveg_nrf import NRFRequires  # type: ignore[import]
 from charms.sdcore_webui_k8s.v0.sdcore_config import (  # type: ignore[import]
     SdcoreConfigRequires,
@@ -36,6 +39,7 @@ from ops.pebble import Layer
 
 logger = logging.getLogger(__name__)
 
+PROMETHEUS_PORT = 8080
 BASE_CONFIG_PATH = "/etc/pcf"
 CONFIG_FILE_NAME = "pcfcfg.yaml"
 PCF_SBI_PORT = 29507
@@ -64,7 +68,15 @@ class PCFOperatorCharm(CharmBase):
         self._webui_requires = SdcoreConfigRequires(
             charm=self, relation_name=SDCORE_CONFIG_RELATION_NAME
         )
-        self.unit.set_ports(PCF_SBI_PORT)
+        self._pcf_metrics_endpoint = MetricsEndpointProvider(
+            self,
+            jobs=[
+                {
+                    "static_configs": [{"targets": [f"*:{PROMETHEUS_PORT}"]}],
+                }
+            ],
+        )
+        self.unit.set_ports(PROMETHEUS_PORT, PCF_SBI_PORT)
         self._certificates = TLSCertificatesRequiresV3(self, TLS_RELATION_NAME)
         self._logging = LogForwarder(charm=self, relation_name=LOGGING_RELATION_NAME)
         self.framework.observe(self.on.update_status, self._configure_sdcore_pcf)
