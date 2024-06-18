@@ -2,6 +2,7 @@
 # See LICENSE file for licensing details.
 
 import logging
+import os
 from unittest.mock import Mock
 
 import pytest
@@ -35,7 +36,6 @@ WEBUI_APPLICATION_NAME = "sdcore-webui-operator"
 
 
 class TestCharm(PCFUnitTestFixtures):
-
     @staticmethod
     def _read_file(path: str) -> str:
         """Read a file and return its content as a string."""
@@ -101,9 +101,7 @@ class TestCharm(PCFUnitTestFixtures):
         self.harness.remove_relation(nrf_relation_id)
         self.harness.evaluate_status()
 
-        assert self.harness.model.unit.status == BlockedStatus(
-            "Waiting for fiveg_nrf relation(s)"
-        )
+        assert self.harness.model.unit.status == BlockedStatus("Waiting for fiveg_nrf relation(s)")
 
     def test_given_pcf_charm_in_active_state_when_sdcore_config_relation_breaks_then_status_is_blocked(  # noqa: E501
         self, add_storage, mock_default_values, nrf_relation_id, sdcore_config_relation_id
@@ -130,7 +128,9 @@ class TestCharm(PCFUnitTestFixtures):
 
         self.harness.evaluate_status()
 
-        assert self.harness.model.unit.status == WaitingStatus("Waiting for NRF endpoint to be available")  # noqa: E501
+        assert self.harness.model.unit.status == WaitingStatus(
+            "Waiting for NRF endpoint to be available"
+        )  # noqa: E501
 
     def test_given_container_can_connect_and_webui_url_is_not_available_when_collect_status_then_status_is_waiting(  # noqa: E501
         self, add_storage, mock_default_values, nrf_relation_id, sdcore_config_relation_id
@@ -141,14 +141,16 @@ class TestCharm(PCFUnitTestFixtures):
 
         self.harness.evaluate_status()
 
-        assert self.harness.model.unit.status == WaitingStatus("Waiting for Webui URL to be available")  # noqa: E501
+        assert self.harness.model.unit.status == WaitingStatus(
+            "Waiting for Webui URL to be available"
+        )  # noqa: E501
 
     @pytest.mark.parametrize(
         "storage_name",
         [
             "certs",
             "config",
-        ]
+        ],
     )
     def test_given_container_storage_is_not_attached_when_collect_status_then_status_is_waiting(  # noqa: E501
         self, storage_name, nrf_relation_id, sdcore_config_relation_id
@@ -158,7 +160,9 @@ class TestCharm(PCFUnitTestFixtures):
         self._create_certificates_relation()
         self.harness.evaluate_status()
 
-        assert self.harness.model.unit.status == WaitingStatus("Waiting for the storage to be attached")  # noqa: E501
+        assert self.harness.model.unit.status == WaitingStatus(
+            "Waiting for the storage to be attached"
+        )  # noqa: E501
 
     def test_given_certificate_is_not_stored_when_collect_status_then_status_is_waiting(  # noqa: E501
         self, add_storage, mock_default_values, nrf_relation_id, sdcore_config_relation_id
@@ -167,7 +171,9 @@ class TestCharm(PCFUnitTestFixtures):
         self._create_certificates_relation()
         self.harness.evaluate_status()
 
-        assert self.harness.model.unit.status == WaitingStatus("Waiting for certificates to be stored")  # noqa: E501
+        assert self.harness.model.unit.status == WaitingStatus(
+            "Waiting for certificates to be stored"
+        )  # noqa: E501
 
     def test_given_config_file_is_written_when_collect_status_is_called_then_status_is_active(  # noqa: E501
         self,
@@ -198,7 +204,9 @@ class TestCharm(PCFUnitTestFixtures):
 
         self.harness.evaluate_status()
 
-        assert self.harness.model.unit.status == WaitingStatus("Waiting for pod IP address to be available")  # noqa: E501
+        assert self.harness.model.unit.status == WaitingStatus(
+            "Waiting for pod IP address to be available"
+        )  # noqa: E501
 
     def test_given_not_leader_when_collect_status_then_status_is_blocked(self):
         self.harness.set_leader(is_leader=False)
@@ -260,7 +268,6 @@ class TestCharm(PCFUnitTestFixtures):
 
         expected_content = self._read_file(EXPECTED_CONFIG_FILE_PATH)
         assert (root / f"etc/pcf/{CONFIG_FILE_NAME}").read_text() == expected_content.strip()
-
 
     def test_given_config_files_and_relations_are_created_when_configure_sdcore_pcf_is_called_then_expected_plan_is_applied(  # noqa: E501
         self,
@@ -427,7 +434,7 @@ class TestCharm(PCFUnitTestFixtures):
         [
             (b"1.2.3.4", WEBUI_URL),
             (POD_IP, "mywebui:9876"),
-        ]
+        ],
     )
     def test_config_pushed_but_config_changed_and_layer_already_applied_when_pebble_ready_then_pcf_service_is_restarted(  # noqa: E501
         self,
@@ -499,6 +506,24 @@ class TestCharm(PCFUnitTestFixtures):
 
         self.harness.charm._on_certificate_expiring(event=event)
 
-        self.mock_request_certificate.assert_called_with(
-            certificate_signing_request=CSR.encode()
-        )
+        self.mock_request_certificate.assert_called_with(certificate_signing_request=CSR.encode())
+
+    def test_given_no_workload_version_file_when_container_can_connect_then_workload_version_not_set(  # noqa: E501
+        self,
+    ):
+        self.harness.container_pebble_ready(container_name=self.container_name)
+        self.harness.evaluate_status()
+        version = self.harness.get_workload_version()
+        assert version == ""
+
+    def test_given_workload_version_file_when_container_can_connect_then_workload_version_set(
+        self,
+    ):
+        expected_version = "1.2.3"
+        root = self.harness.get_filesystem_root(self.container_name)
+        os.mkdir(f"{root}/etc")
+        (root / "etc/workload-version").write_text(expected_version)
+        self.harness.container_pebble_ready(container_name=self.container_name)
+        self.harness.evaluate_status()
+        version = self.harness.get_workload_version()
+        assert version == expected_version

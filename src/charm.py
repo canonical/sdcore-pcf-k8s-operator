@@ -52,6 +52,7 @@ CERTIFICATE_NAME = "pcf.pem"
 CERTIFICATE_COMMON_NAME = "pcf.sdcore"
 LOGGING_RELATION_NAME = "logging"
 SDCORE_CONFIG_RELATION_NAME = "sdcore_config"
+WORKLOAD_VERSION_FILE_NAME = "/etc/workload-version"
 
 
 class PCFOperatorCharm(CharmBase):
@@ -95,8 +96,7 @@ class PCFOperatorCharm(CharmBase):
             self._certificates.on.certificate_expiring, self._on_certificate_expiring
         )
         self.framework.observe(
-            self._webui_requires.on.webui_url_available,
-            self._configure_sdcore_pcf
+            self._webui_requires.on.webui_url_available, self._configure_sdcore_pcf
         )
         self.framework.observe(self.on.sdcore_config_relation_joined, self._configure_sdcore_pcf)
 
@@ -138,7 +138,10 @@ class PCFOperatorCharm(CharmBase):
         self._configure_pebble(restart=should_restart)
 
     def _on_collect_unit_status(self, event: CollectStatusEvent):  # noqa C901
-        """Check the unit status and set to Unit when CollectStatusEvent is fired."""
+        """Check the unit status and set to Unit when CollectStatusEvent is fired.
+
+        Also sets the unit workload version if present
+        """
         if not self.unit.is_leader():
             # NOTE: In cases where leader status is lost before the charm is
             # finished processing all teardown events, this prevents teardown
@@ -152,11 +155,13 @@ class PCFOperatorCharm(CharmBase):
             event.add_status(WaitingStatus("Waiting for container to be ready"))
             return
 
+        self.unit.set_workload_version(self._get_workload_version())
+
         if missing_relations := self._missing_relations():
             event.add_status(
                 BlockedStatus(f"Waiting for {', '.join(missing_relations)} relation(s)")
             )
-            logger.info("Waiting for %s  relation(s)", ', '.join(missing_relations))
+            logger.info("Waiting for %s  relation(s)", ", ".join(missing_relations))
             return
 
         if not self._nrf_is_available():
@@ -276,9 +281,7 @@ class PCFOperatorCharm(CharmBase):
             list: missing relation names.
         """
         missing_relations = []
-        for relation in [NRF_RELATION_NAME,
-                         TLS_RELATION_NAME,
-                         SDCORE_CONFIG_RELATION_NAME]:
+        for relation in [NRF_RELATION_NAME, TLS_RELATION_NAME, SDCORE_CONFIG_RELATION_NAME]:
             if not self._relation_created(relation):
                 missing_relations.append(relation)
         return missing_relations
@@ -421,6 +424,24 @@ class PCFOperatorCharm(CharmBase):
         self._container.push(path=f"{CERTS_DIR_PATH}/{CSR_NAME}", source=csr.decode().strip())
         logger.info("Pushed CSR to workload")
 
+    def _get_workload_version(self) -> str:
+        """Return the workload version.
+
+        Checks for the presence of /etc/workload-version file
+        and if present, returns the contents of that file. If
+        the file is not present, an empty string is returned.
+
+        Returns:
+            string: A human readable string representing the
+            version of the workload
+        """
+        if self._container.exists(path=f"{WORKLOAD_VERSION_FILE_NAME}"):
+            version_file_content = self._container.pull(
+                path=f"{WORKLOAD_VERSION_FILE_NAME}"
+            ).read()
+            return version_file_content
+        return ""
+
     def _configure_pebble(self, restart: bool = False) -> None:
         """Configure the Pebble layer.
 
@@ -429,9 +450,7 @@ class PCFOperatorCharm(CharmBase):
         """
         plan = self._container.get_plan()
         if plan.services != self._pebble_layer.services:
-            self._container.add_layer(
-                self._container_name, self._pebble_layer, combine=True
-            )
+            self._container.add_layer(self._container_name, self._pebble_layer, combine=True)
             self._container.replan()
             logger.info("New layer added: %s", self._pebble_layer)
         if restart:
