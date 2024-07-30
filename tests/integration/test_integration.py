@@ -16,8 +16,8 @@ METADATA = yaml.safe_load(Path("./charmcraft.yaml").read_text())
 APPLICATION_NAME = METADATA["name"]
 NRF_CHARM_NAME = "sdcore-nrf-k8s"
 NRF_CHARM_CHANNEL = "1.5/edge"
-WEBUI_CHARM_NAME = "sdcore-webui-k8s"
-WEBUI_CHARM_CHANNEL = "1.5/edge"
+NMS_CHARM_NAME = "sdcore-nms-k8s"
+NMS_CHARM_CHANNEL = "1.5/edge"
 DATABASE_CHARM_NAME = "mongodb-k8s"
 DATABASE_CHARM_CHANNEL = "6/beta"
 TLS_CHARM_NAME = "self-signed-certificates"
@@ -43,7 +43,7 @@ async def deploy(ops_test: OpsTest, request):
     await _deploy_database(ops_test)
     await _deploy_tls_provider(ops_test)
     await _deploy_grafana_agent(ops_test)
-    await _deploy_webui(ops_test)
+    await _deploy_nms(ops_test)
     await _deploy_nrf(ops_test)
 
 
@@ -66,8 +66,8 @@ async def test_relate_and_wait_for_active_status(ops_test: OpsTest, deploy):
     )
     await ops_test.model.integrate(relation1=APPLICATION_NAME, relation2=TLS_CHARM_NAME)
     await ops_test.model.integrate(
-        relation1=f"{APPLICATION_NAME}:sdcore_config",
-        relation2=f"{WEBUI_CHARM_NAME}:sdcore-config",
+        relation1=f"{APPLICATION_NAME}:sdcore-config",
+        relation2=f"{NMS_CHARM_NAME}:sdcore-config",
     )
     await ops_test.model.integrate(
         relation1=f"{APPLICATION_NAME}:logging",
@@ -99,19 +99,19 @@ async def test_restore_nrf_and_wait_for_active_status(ops_test: OpsTest, deploy)
     await ops_test.model.wait_for_idle(apps=[APPLICATION_NAME], status="active", timeout=1000)
 
 @pytest.mark.abort_on_fail
-async def test_remove_webui_and_wait_for_blocked_status(ops_test: OpsTest, deploy):
+async def test_remove_nms_and_wait_for_blocked_status(ops_test: OpsTest, deploy):
     assert ops_test.model
-    await ops_test.model.remove_application(WEBUI_CHARM_NAME, block_until_done=True)
+    await ops_test.model.remove_application(NMS_CHARM_NAME, block_until_done=True)
     await ops_test.model.wait_for_idle(apps=[APPLICATION_NAME], status="blocked", timeout=1000)
 
 
 @pytest.mark.abort_on_fail
-async def test_restore_webui_and_wait_for_active_status(ops_test: OpsTest, deploy):
+async def test_restore_nms_and_wait_for_active_status(ops_test: OpsTest, deploy):
     assert ops_test.model
-    await _deploy_webui(ops_test)
+    await _deploy_nms(ops_test)
     await ops_test.model.integrate(
-        relation1=f"{APPLICATION_NAME}:sdcore_config",
-        relation2=f"{WEBUI_CHARM_NAME}:sdcore-config",
+        relation1=f"{APPLICATION_NAME}:sdcore-config",
+        relation2=f"{NMS_CHARM_NAME}:sdcore-config",
     )
     await ops_test.model.wait_for_idle(apps=[APPLICATION_NAME], status="active", timeout=1000)
 
@@ -142,18 +142,18 @@ async def _deploy_database(ops_test: OpsTest):
     )
 
 
-async def _deploy_webui(ops_test: OpsTest):
+async def _deploy_nms(ops_test: OpsTest):
     assert ops_test.model
     await ops_test.model.deploy(
-        WEBUI_CHARM_NAME,
-        application_name=WEBUI_CHARM_NAME,
-        channel=WEBUI_CHARM_CHANNEL,
+        NMS_CHARM_NAME,
+        application_name=NMS_CHARM_NAME,
+        channel=NMS_CHARM_CHANNEL,
     )
     await ops_test.model.integrate(
-        relation1=f"{WEBUI_CHARM_NAME}:common_database", relation2=f"{DATABASE_CHARM_NAME}"
+        relation1=f"{NMS_CHARM_NAME}:common_database", relation2=f"{DATABASE_CHARM_NAME}"
     )
     await ops_test.model.integrate(
-        relation1=f"{WEBUI_CHARM_NAME}:auth_database", relation2=f"{DATABASE_CHARM_NAME}"
+        relation1=f"{NMS_CHARM_NAME}:auth_database", relation2=f"{DATABASE_CHARM_NAME}"
     )
 
 
@@ -167,7 +167,7 @@ async def _deploy_nrf(ops_test: OpsTest):
     )
     await ops_test.model.integrate(relation1=NRF_CHARM_NAME, relation2=DATABASE_CHARM_NAME)
     await ops_test.model.integrate(relation1=NRF_CHARM_NAME, relation2=TLS_CHARM_NAME)
-    await ops_test.model.integrate(relation1=NRF_CHARM_NAME, relation2=WEBUI_CHARM_NAME)
+    await ops_test.model.integrate(relation1=NRF_CHARM_NAME, relation2=NMS_CHARM_NAME)
 
 
 async def _deploy_tls_provider(ops_test: OpsTest):

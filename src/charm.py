@@ -13,10 +13,10 @@ from charms.loki_k8s.v1.loki_push_api import LogForwarder  # type: ignore[import
 from charms.prometheus_k8s.v0.prometheus_scrape import (  # type: ignore[import]
     MetricsEndpointProvider,
 )
-from charms.sdcore_nrf_k8s.v0.fiveg_nrf import NRFRequires  # type: ignore[import]
-from charms.sdcore_webui_k8s.v0.sdcore_config import (  # type: ignore[import]
+from charms.sdcore_nms_k8s.v0.sdcore_config import (  # type: ignore[import]
     SdcoreConfigRequires,
 )
+from charms.sdcore_nrf_k8s.v0.fiveg_nrf import NRFRequires  # type: ignore[import]
 from charms.tls_certificates_interface.v3.tls_certificates import (  # type: ignore[import]
     CertificateExpiringEvent,
     TLSCertificatesRequiresV3,
@@ -51,7 +51,7 @@ CSR_NAME = "pcf.csr"
 CERTIFICATE_NAME = "pcf.pem"
 CERTIFICATE_COMMON_NAME = "pcf.sdcore"
 LOGGING_RELATION_NAME = "logging"
-SDCORE_CONFIG_RELATION_NAME = "sdcore_config"
+SDCORE_CONFIG_RELATION_NAME = "sdcore-config"
 WORKLOAD_VERSION_FILE_NAME = "/etc/workload-version"
 
 
