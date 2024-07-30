@@ -31,7 +31,7 @@ PRIVATE_KEY = "whatever key content"
 PRIVATE_KEY_PATH = "support/TLS/pcf.key"
 VALID_NRF_URL = "https://nrf:443"
 WEBUI_URL = "sdcore-webui:9876"
-SDCORE_CONFIG_RELATION_NAME = "sdcore-config"
+SDCORE_CONFIG_RELATION_NAME = "sdcore_config"
 NMS_APPLICATION_NAME = "sdcore-nms-operator"
 
 

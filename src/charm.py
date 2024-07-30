@@ -51,7 +51,7 @@ CSR_NAME = "pcf.csr"
 CERTIFICATE_NAME = "pcf.pem"
 CERTIFICATE_COMMON_NAME = "pcf.sdcore"
 LOGGING_RELATION_NAME = "logging"
-SDCORE_CONFIG_RELATION_NAME = "sdcore-config"
+SDCORE_CONFIG_RELATION_NAME = "sdcore_config"
 WORKLOAD_VERSION_FILE_NAME = "/etc/workload-version"
 
 
