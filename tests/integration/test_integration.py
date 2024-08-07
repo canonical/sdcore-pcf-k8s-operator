@@ -34,7 +34,8 @@ async def deploy(ops_test: OpsTest, request):
     resources = {
         "pcf-image": METADATA["resources"]["pcf-image"]["upstream-source"],
     }
-    await ops_test.model.deploy(  # type: ignore[union-attr]
+    assert ops_test.model
+    await ops_test.model.deploy(
         charm,
         resources=resources,
         application_name=APPLICATION_NAME,
@@ -51,7 +52,8 @@ async def deploy(ops_test: OpsTest, request):
 async def test_given_charm_is_built_when_deployed_then_status_is_blocked(
     ops_test: OpsTest, deploy
 ):
-    await ops_test.model.wait_for_idle(  # type: ignore[union-attr]
+    assert ops_test.model
+    await ops_test.model.wait_for_idle(
         apps=[APPLICATION_NAME],
         status="blocked",
         timeout=1000,
@@ -71,11 +73,11 @@ async def test_relate_and_wait_for_active_status(ops_test: OpsTest, deploy):
     )
     await ops_test.model.integrate(
         relation1=f"{APPLICATION_NAME}:logging",
-        relation2=f"{GRAFANA_AGENT_CHARM_NAME}:logging-provider"
+        relation2=f"{GRAFANA_AGENT_CHARM_NAME}:logging-provider",
     )
     await ops_test.model.integrate(
         relation1=f"{APPLICATION_NAME}:metrics-endpoint",
-        relation2=f"{GRAFANA_AGENT_CHARM_NAME}:metrics-endpoint"
+        relation2=f"{GRAFANA_AGENT_CHARM_NAME}:metrics-endpoint",
     )
 
     await ops_test.model.wait_for_idle(
@@ -87,8 +89,9 @@ async def test_relate_and_wait_for_active_status(ops_test: OpsTest, deploy):
 
 @pytest.mark.abort_on_fail
 async def test_remove_nrf_and_wait_for_blocked_status(ops_test: OpsTest, deploy):
-    await ops_test.model.remove_application(NRF_CHARM_NAME, block_until_done=True)  # type: ignore[union-attr]  # noqa: E501
-    await ops_test.model.wait_for_idle(apps=[APPLICATION_NAME], status="blocked", timeout=60)  # type: ignore[union-attr]  # noqa: E501
+    assert ops_test.model
+    await ops_test.model.remove_application(NRF_CHARM_NAME, block_until_done=True)
+    await ops_test.model.wait_for_idle(apps=[APPLICATION_NAME], status="blocked", timeout=60)
 
 
 @pytest.mark.abort_on_fail
@@ -97,6 +100,7 @@ async def test_restore_nrf_and_wait_for_active_status(ops_test: OpsTest, deploy)
     await _deploy_nrf(ops_test)
     await ops_test.model.integrate(relation1=APPLICATION_NAME, relation2=NRF_CHARM_NAME)
     await ops_test.model.wait_for_idle(apps=[APPLICATION_NAME], status="active", timeout=1000)
+
 
 @pytest.mark.abort_on_fail
 async def test_remove_webui_and_wait_for_blocked_status(ops_test: OpsTest, deploy):
