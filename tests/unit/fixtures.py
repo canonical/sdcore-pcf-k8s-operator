@@ -11,7 +11,7 @@ from charm import (
     NRF_RELATION_NAME,
     PCFOperatorCharm,
 )
-from charms.tls_certificates_interface.v3.tls_certificates import (  # type: ignore[import]
+from charms.tls_certificates_interface.v3.tls_certificates import (
     ProviderCertificate,
 )
 from ops import testing
@@ -40,12 +40,14 @@ class PCFUnitTestFixtures:
     patcher_generate_csr = patch("charm.generate_csr")
     patcher_generate_private_key = patch("charm.generate_private_key")
     patcher_get_certificates = patch(f"{CERTIFICATES_LIB}.get_assigned_certificates")
-    patcher_nrf_url = patch("charms.sdcore_nrf_k8s.v0.fiveg_nrf.NRFRequires.nrf_url", new_callable=PropertyMock)  # noqa: E501
+    patcher_nrf_url = patch(
+        "charms.sdcore_nrf_k8s.v0.fiveg_nrf.NRFRequires.nrf_url", new_callable=PropertyMock
+    )  # noqa: E501
     patcher_request_certificate = patch(f"{CERTIFICATES_LIB}.request_certificate_creation")
     patcher_restart_container = patch("ops.model.Container.restart")
     patcher_webui_url = patch(
         "charms.sdcore_webui_k8s.v0.sdcore_config.SdcoreConfigRequires.webui_url",
-        new_callable=PropertyMock
+        new_callable=PropertyMock,
     )
 
     @pytest.fixture()
@@ -74,7 +76,7 @@ class PCFUnitTestFixtures:
         self.mock_generate_csr.return_value = CSR.encode()
 
     @pytest.fixture(autouse=True)
-    def harness(self, setUp, request):
+    def setup_harness(self, setUp, request):
         self.harness = testing.Harness(PCFOperatorCharm)
         self.harness.set_model_name(name="whatever")
         self.harness.set_leader(is_leader=True)
