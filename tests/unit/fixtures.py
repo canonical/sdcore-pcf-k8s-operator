@@ -42,7 +42,7 @@ class PCFUnitTestFixtures:
     patcher_get_certificates = patch(f"{CERTIFICATES_LIB}.get_assigned_certificates")
     patcher_nrf_url = patch(
         "charms.sdcore_nrf_k8s.v0.fiveg_nrf.NRFRequires.nrf_url", new_callable=PropertyMock
-    )  # noqa: E501
+    ) 
     patcher_request_certificate = patch(f"{CERTIFICATES_LIB}.request_certificate_creation")
     patcher_restart_container = patch("ops.model.Container.restart")
     patcher_webui_url = patch(
