@@ -10,11 +10,12 @@ from charm import (
     CONFIG_FILE_NAME,
     TLS_RELATION_NAME,
 )
-from charms.tls_certificates_interface.v3.tls_certificates import (  # type: ignore[import]
+from charms.tls_certificates_interface.v3.tls_certificates import (
     ProviderCertificate,
 )
-from fixtures import PCFUnitTestFixtures
 from ops.model import ActiveStatus, BlockedStatus, WaitingStatus
+
+from tests.unit.fixtures import PCFUnitTestFixtures
 
 logger = logging.getLogger(__name__)
 
