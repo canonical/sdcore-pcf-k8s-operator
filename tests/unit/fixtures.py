@@ -32,7 +32,7 @@ PRIVATE_KEY_PATH = "support/TLS/pcf.key"
 VALID_NRF_URL = "https://nrf:443"
 WEBUI_URL = "sdcore-webui:9876"
 SDCORE_CONFIG_RELATION_NAME = "sdcore_config"
-WEBUI_APPLICATION_NAME = "sdcore-webui-operator"
+NMS_APPLICATION_NAME = "sdcore-nms-operator"
 
 
 class PCFUnitTestFixtures:
@@ -46,8 +46,8 @@ class PCFUnitTestFixtures:
     patcher_request_certificate = patch(f"{CERTIFICATES_LIB}.request_certificate_creation")
     patcher_restart_container = patch("ops.model.Container.restart")
     patcher_webui_url = patch(
-        "charms.sdcore_webui_k8s.v0.sdcore_config.SdcoreConfigRequires.webui_url",
-        new_callable=PropertyMock,
+        "charms.sdcore_nms_k8s.v0.sdcore_config.SdcoreConfigRequires.webui_url",
+        new_callable=PropertyMock
     )
 
     @pytest.fixture()
@@ -116,14 +116,14 @@ class PCFUnitTestFixtures:
     def sdcore_config_relation_id(self) -> Generator[int, None, None]:
         sdcore_config_relation_id = self.harness.add_relation(  # type:ignore
             relation_name=SDCORE_CONFIG_RELATION_NAME,
-            remote_app=WEBUI_APPLICATION_NAME,
+            remote_app=NMS_APPLICATION_NAME,
         )
         self.harness.add_relation_unit(  # type:ignore
-            relation_id=sdcore_config_relation_id, remote_unit_name=f"{WEBUI_APPLICATION_NAME}/0"
+            relation_id=sdcore_config_relation_id, remote_unit_name=f"{NMS_APPLICATION_NAME}/0"
         )
         self.harness.update_relation_data(  # type:ignore
             relation_id=sdcore_config_relation_id,
-            app_or_unit=WEBUI_APPLICATION_NAME,
+            app_or_unit=NMS_APPLICATION_NAME,
             key_values={
                 "webui_url": WEBUI_URL,
             },
