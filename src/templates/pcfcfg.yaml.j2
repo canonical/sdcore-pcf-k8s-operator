@@ -8,6 +8,8 @@ configuration:
     port: {{ pcf_sbi_port }}
     registerIPv4: {{ pod_ip }}
     scheme: {{ scheme }}
+  enableNrfCaching: true
+  nrfCacheEvictionInterval: 900
   serviceList:
   - serviceName: npcf-am-policy-control
   - serviceName: npcf-smpolicycontrol
