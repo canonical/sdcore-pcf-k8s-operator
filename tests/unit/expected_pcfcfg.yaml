@@ -8,6 +8,8 @@ configuration:
     port: 29507
     registerIPv4: 1.1.1.1
     scheme: https
+  enableNrfCaching: true
+  nrfCacheEvictionInterval: 900
   serviceList:
   - serviceName: npcf-am-policy-control
   - serviceName: npcf-smpolicycontrol
