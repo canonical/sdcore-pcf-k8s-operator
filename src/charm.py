@@ -60,6 +60,7 @@ class PCFOperatorCharm(CharmBase):
 
     def __init__(self, *args):
         super().__init__(*args)
+        self.framework.observe(self.on.collect_unit_status, self._on_collect_unit_status)
         if not self.unit.is_leader():
             return
         self._container_name = self._service_name = "pcf"
@@ -81,7 +82,6 @@ class PCFOperatorCharm(CharmBase):
         self._certificates = TLSCertificatesRequiresV3(self, TLS_RELATION_NAME)
         self._logging = LogForwarder(charm=self, relation_name=LOGGING_RELATION_NAME)
         self.framework.observe(self.on.update_status, self._configure_sdcore_pcf)
-        self.framework.observe(self.on.collect_unit_status, self._on_collect_unit_status)
         self.framework.observe(self.on.fiveg_nrf_relation_joined, self._configure_sdcore_pcf)
         self.framework.observe(self._nrf_requires.on.nrf_available, self._configure_sdcore_pcf)
         self.framework.observe(self.on.pcf_pebble_ready, self._configure_sdcore_pcf)
