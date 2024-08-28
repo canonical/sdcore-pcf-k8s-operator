@@ -2,16 +2,13 @@
 # See LICENSE file for licensing details.
 
 
-import datetime
 import tempfile
 
 import scenario
-from charms.tls_certificates_interface.v3.tls_certificates import (
-    ProviderCertificate,
-)
 from ops.model import ActiveStatus, BlockedStatus, WaitingStatus
 from ops.pebble import Layer, ServiceStatus
 
+from tests.unit.certificates_helpers import example_cert_and_key
 from tests.unit.fixtures import PCFUnitTestFixtures
 
 
@@ -251,12 +248,15 @@ class TestCharmCollectStatus(PCFUnitTestFixtures):
             self.mock_nrf_url.return_value = "https://nrf.url"
             self.mock_sdcore_config_webui_url.return_value = "http://webui.url"
             self.mock_check_output.return_value = b"1.2.3.4"
+            self.mock_get_assigned_certificate.return_value = (None, None)
             with open(f"{temp_dir}/pcf.csr", "w") as f:
                 f.write("whatever csr")
 
             state_out = self.ctx.run("collect_unit_status", state_in)
 
-            assert state_out.unit_status == WaitingStatus("Waiting for certificates to be stored")
+            assert state_out.unit_status == WaitingStatus(
+                "Waiting for certificates to be available"
+            )
 
     def test_given_service_not_running_when_collect_unit_status_then_status_is_waiting(
         self,
@@ -295,18 +295,10 @@ class TestCharmCollectStatus(PCFUnitTestFixtures):
             self.mock_nrf_url.return_value = "https://nrf.url"
             self.mock_sdcore_config_webui_url.return_value = "http://webui.url"
             self.mock_check_output.return_value = b"1.2.3.4"
-            self.mock_get_assigned_certificates.return_value = [
-                ProviderCertificate(
-                    relation_id=certificates_relation.relation_id,
-                    application_name="pcf",
-                    csr="whatever csr",
-                    certificate="whatever cert",
-                    ca="whatever ca",
-                    chain=["whatever ca", "whatever cert"],
-                    revoked=False,
-                    expiry_time=datetime.datetime.now(),
-                )
-            ]
+            provider_certificate, private_key = example_cert_and_key(
+                relation_id=certificates_relation.relation_id
+            )
+            self.mock_get_assigned_certificate.return_value = (provider_certificate, private_key)
             with open(f"{temp_dir}/pcf.csr", "w") as f:
                 f.write("whatever csr")
 
@@ -353,18 +345,10 @@ class TestCharmCollectStatus(PCFUnitTestFixtures):
             self.mock_nrf_url.return_value = "https://nrf.url"
             self.mock_sdcore_config_webui_url.return_value = "http://webui.url"
             self.mock_check_output.return_value = b"1.2.3.4"
-            self.mock_get_assigned_certificates.return_value = [
-                ProviderCertificate(
-                    relation_id=certificates_relation.relation_id,
-                    application_name="pcf",
-                    csr="whatever csr",
-                    certificate="whatever cert",
-                    ca="whatever ca",
-                    chain=["whatever ca", "whatever cert"],
-                    revoked=False,
-                    expiry_time=datetime.datetime.now(),
-                )
-            ]
+            provider_certificate, private_key = example_cert_and_key(
+                relation_id=certificates_relation.relation_id
+            )
+            self.mock_get_assigned_certificate.return_value = (provider_certificate, private_key)
             with open(f"{temp_dir}/pcf.csr", "w") as f:
                 f.write("whatever csr")
 
