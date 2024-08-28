@@ -2,16 +2,13 @@
 # See LICENSE file for licensing details.
 
 
-import datetime
 import os
 import tempfile
 
 import scenario
-from charms.tls_certificates_interface.v3.tls_certificates import (
-    ProviderCertificate,
-)
 from ops.pebble import Layer
 
+from tests.unit.certificates_helpers import example_cert_and_key
 from tests.unit.fixtures import PCFUnitTestFixtures
 
 
@@ -53,20 +50,10 @@ class TestCharmConfigure(PCFUnitTestFixtures):
             self.mock_nrf_url.return_value = "https://nrf:443"
             self.mock_sdcore_config_webui_url.return_value = "sdcore-webui:9876"
             self.mock_check_output.return_value = b"1.1.1.1"
-            self.mock_generate_private_key.return_value = b"private key"
-            self.mock_generate_csr.return_value = b"whatever csr"
-            self.mock_get_assigned_certificates.return_value = [
-                ProviderCertificate(
-                    relation_id=certificates_relation.relation_id,
-                    application_name="pcf",
-                    csr="whatever csr",
-                    certificate="whatever cert",
-                    ca="whatever ca",
-                    chain=["whatever ca", "whatever cert"],
-                    revoked=False,
-                    expiry_time=datetime.datetime.now(),
-                )
-            ]
+            provider_certificate, private_key = example_cert_and_key(
+                relation_id=certificates_relation.relation_id
+            )
+            self.mock_get_assigned_certificate.return_value = (provider_certificate, private_key)
             with open(f"{temp_dir}/pcf.csr", "w") as f:
                 f.write("whatever csr")
 
@@ -117,20 +104,10 @@ class TestCharmConfigure(PCFUnitTestFixtures):
             self.mock_nrf_url.return_value = "https://nrf:443"
             self.mock_sdcore_config_webui_url.return_value = "sdcore-webui:9876"
             self.mock_check_output.return_value = b"1.1.1.1"
-            self.mock_generate_private_key.return_value = b"private key"
-            self.mock_generate_csr.return_value = b"whatever csr"
-            self.mock_get_assigned_certificates.return_value = [
-                ProviderCertificate(
-                    relation_id=certificates_relation.relation_id,
-                    application_name="pcf",
-                    csr="whatever csr",
-                    certificate="whatever cert",
-                    ca="whatever ca",
-                    chain=["whatever ca", "whatever cert"],
-                    revoked=False,
-                    expiry_time=datetime.datetime.now(),
-                )
-            ]
+            provider_certificate, private_key = example_cert_and_key(
+                relation_id=certificates_relation.relation_id
+            )
+            self.mock_get_assigned_certificate.return_value = (provider_certificate, private_key)
             with open(f"{temp_dir}/nrf.csr", "w") as f:
                 f.write("whatever csr")
             with open("tests/unit/expected_pcfcfg.yaml", "r") as expected_config_file:
@@ -187,20 +164,10 @@ class TestCharmConfigure(PCFUnitTestFixtures):
             self.mock_nrf_url.return_value = "https://nrf:443"
             self.mock_sdcore_config_webui_url.return_value = "sdcore-webui:9876"
             self.mock_check_output.return_value = b"1.1.1.1"
-            self.mock_generate_private_key.return_value = b"private key"
-            self.mock_generate_csr.return_value = b"whatever csr"
-            self.mock_get_assigned_certificates.return_value = [
-                ProviderCertificate(
-                    relation_id=certificates_relation.relation_id,
-                    application_name="pcf",
-                    csr="whatever csr",
-                    certificate="whatever cert",
-                    ca="whatever ca",
-                    chain=["whatever ca", "whatever cert"],
-                    revoked=False,
-                    expiry_time=datetime.datetime.now(),
-                )
-            ]
+            provider_certificate, private_key = example_cert_and_key(
+                relation_id=certificates_relation.relation_id
+            )
+            self.mock_get_assigned_certificate.return_value = (provider_certificate, private_key)
             with open(f"{temp_dir}/pcf.csr", "w") as f:
                 f.write("whatever csr")
 
@@ -229,57 +196,3 @@ class TestCharmConfigure(PCFUnitTestFixtures):
                     }
                 )
             }
-
-    def test_given_can_connect_when_on_pebble_ready_then_private_key_is_generated(
-        self,
-    ):
-        with tempfile.TemporaryDirectory() as tempdir:
-            nrf_relation = scenario.Relation(endpoint="fiveg_nrf", interface="fiveg_nrf")
-            certificates_relation = scenario.Relation(
-                endpoint="certificates", interface="tls-certificates"
-            )
-            sdcore_config_relation = scenario.Relation(
-                endpoint="sdcore_config", interface="sdcore_config"
-            )
-            certs_mount = scenario.Mount(
-                location="/support/TLS",
-                src=tempdir,
-            )
-            config_mount = scenario.Mount(
-                location="/etc/pcf/",
-                src=tempdir,
-            )
-            container = scenario.Container(
-                name="pcf",
-                can_connect=True,
-                mounts={"certs": certs_mount, "config": config_mount},
-            )
-            state_in = scenario.State(
-                leader=True,
-                containers=[container],
-                relations=[
-                    nrf_relation,
-                    certificates_relation,
-                    sdcore_config_relation,
-                ],
-            )
-            self.mock_get_assigned_certificates.return_value = [
-                ProviderCertificate(
-                    relation_id=certificates_relation.relation_id,
-                    application_name="pcf",
-                    csr="whatever csr",
-                    certificate="whatever cert",
-                    ca="whatever ca",
-                    chain=["whatever ca", "whatever cert"],
-                    revoked=False,
-                    expiry_time=datetime.datetime.now(),
-                )
-            ]
-            self.mock_check_output.return_value = b"1.1.1.1"
-            self.mock_generate_private_key.return_value = b"private key"
-            self.mock_generate_csr.return_value = b"whatever csr"
-
-            self.ctx.run(container.pebble_ready_event, state_in)
-
-            with open(tempdir + "/pcf.key", "r") as f:
-                assert f.read() == "private key"
