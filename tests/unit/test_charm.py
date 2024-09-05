@@ -6,6 +6,12 @@ import unittest
 from unittest.mock import Mock, PropertyMock, patch
 
 import yaml
+from charms.tls_certificates_interface.v3.tls_certificates import (  # type: ignore[import]
+    ProviderCertificate,
+)
+from ops import testing
+from ops.model import ActiveStatus, BlockedStatus, WaitingStatus
+
 from charm import (
     CONFIG_FILE_NAME,
     DATABASE_RELATION_NAME,
@@ -13,11 +19,6 @@ from charm import (
     TLS_RELATION_NAME,
     PCFOperatorCharm,
 )
-from charms.tls_certificates_interface.v3.tls_certificates import (  # type: ignore[import]
-    ProviderCertificate,
-)
-from ops import testing
-from ops.model import ActiveStatus, BlockedStatus, WaitingStatus
 
 logger = logging.getLogger(__name__)
 
