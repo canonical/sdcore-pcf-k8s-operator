@@ -30,9 +30,9 @@ charset-normalizer==3.3.2
     # via requests
 click==8.1.7
     # via typer
-cosl==0.0.26
+cosl==0.0.31
     # via -r requirements.in
-cryptography==43.0.0
+cryptography==43.0.1
     # via
     #   -r requirements.in
     #   paramiko
@@ -77,7 +77,7 @@ oauthlib==3.2.2
     # via
     #   kubernetes
     #   requests-oauthlib
-ops==2.16.0
+ops==2.16.1
     # via
     #   -r requirements.in
     #   cosl
@@ -103,12 +103,12 @@ pyasn1-modules==0.3.0
     # via google-auth
 pycparser==2.21
     # via cffi
-pydantic==2.8.2
+pydantic==2.9.0
     # via
     #   -r requirements.in
     #   cosl
     #   pytest-interface-tester
-pydantic-core==2.20.1
+pydantic-core==2.23.2
     # via pydantic
 pymacaroons==0.13.0
     # via macaroonbakery
@@ -179,6 +179,8 @@ typing-extensions==4.10.0
     #   typing-inspect
 typing-inspect==0.9.0
     # via juju
+tzdata==2024.1
+    # via pydantic
 urllib3==2.2.2
     # via
     #   kubernetes
