@@ -18,7 +18,7 @@ class TestCharmCollectStatus(PCFUnitTestFixtures):
             leader=False,
         )
 
-        state_out = self.ctx.run("collect_unit_status", state_in)
+        state_out = self.ctx.run(self.ctx.on.collect_unit_status(), state_in)
 
         assert state_out.unit_status == BlockedStatus("Scaling is not implemented for this charm")
 
@@ -31,7 +31,7 @@ class TestCharmCollectStatus(PCFUnitTestFixtures):
             leader=True,
         )
 
-        state_out = self.ctx.run("collect_unit_status", state_in)
+        state_out = self.ctx.run(self.ctx.on.collect_unit_status(), state_in)
 
         assert state_out.unit_status == WaitingStatus("Waiting for container to be ready")
 
@@ -45,7 +45,7 @@ class TestCharmCollectStatus(PCFUnitTestFixtures):
             leader=True,
         )
 
-        state_out = self.ctx.run("collect_unit_status", state_in)
+        state_out = self.ctx.run(self.ctx.on.collect_unit_status(), state_in)
 
         assert state_out.unit_status == BlockedStatus(
             "Waiting for fiveg_nrf, certificates, sdcore_config relation(s)"
@@ -68,7 +68,7 @@ class TestCharmCollectStatus(PCFUnitTestFixtures):
             leader=True,
         )
 
-        state_out = self.ctx.run("collect_unit_status", state_in)
+        state_out = self.ctx.run(self.ctx.on.collect_unit_status(), state_in)
 
         assert state_out.unit_status == BlockedStatus(
             "Waiting for fiveg_nrf, sdcore_config relation(s)"
@@ -101,7 +101,7 @@ class TestCharmCollectStatus(PCFUnitTestFixtures):
         self.mock_nrf_url.return_value = None
         self.mock_sdcore_config_webui_url.return_value = None
 
-        state_out = self.ctx.run("collect_unit_status", state_in)
+        state_out = self.ctx.run(self.ctx.on.collect_unit_status(), state_in)
 
         assert state_out.unit_status == WaitingStatus("Waiting for NRF endpoint to be available")
 
@@ -132,7 +132,7 @@ class TestCharmCollectStatus(PCFUnitTestFixtures):
         self.mock_nrf_url.return_value = "https://nrf.url"
         self.mock_sdcore_config_webui_url.return_value = None
 
-        state_out = self.ctx.run("collect_unit_status", state_in)
+        state_out = self.ctx.run(self.ctx.on.collect_unit_status(), state_in)
 
         assert state_out.unit_status == WaitingStatus("Waiting for Webui URL to be available")
 
@@ -163,7 +163,7 @@ class TestCharmCollectStatus(PCFUnitTestFixtures):
         self.mock_nrf_url.return_value = "https://nrf.url"
         self.mock_sdcore_config_webui_url.return_value = "http://webui.url"
 
-        state_out = self.ctx.run("collect_unit_status", state_in)
+        state_out = self.ctx.run(self.ctx.on.collect_unit_status(), state_in)
 
         assert state_out.unit_status == WaitingStatus("Waiting for the storage to be attached")
 
@@ -185,11 +185,11 @@ class TestCharmCollectStatus(PCFUnitTestFixtures):
             )
             config_mount = scenario.Mount(
                 location="/etc/pcf/",
-                src=temp_dir,
+                source=temp_dir,
             )
             certs_mount = scenario.Mount(
                 location="/support/TLS/",
-                src=temp_dir,
+                source=temp_dir,
             )
             container = scenario.Container(
                 name="pcf",
@@ -205,7 +205,7 @@ class TestCharmCollectStatus(PCFUnitTestFixtures):
             self.mock_sdcore_config_webui_url.return_value = "http://webui.url"
             self.mock_check_output.return_value = b""
 
-            state_out = self.ctx.run("collect_unit_status", state_in)
+            state_out = self.ctx.run(self.ctx.on.collect_unit_status(), state_in)
 
             assert state_out.unit_status == WaitingStatus(
                 "Waiting for pod IP address to be available"
@@ -229,11 +229,11 @@ class TestCharmCollectStatus(PCFUnitTestFixtures):
             )
             config_mount = scenario.Mount(
                 location="/etc/pcf/",
-                src=temp_dir,
+                source=temp_dir,
             )
             certs_mount = scenario.Mount(
                 location="/support/TLS/",
-                src=temp_dir,
+                source=temp_dir,
             )
             container = scenario.Container(
                 name="pcf",
@@ -252,7 +252,7 @@ class TestCharmCollectStatus(PCFUnitTestFixtures):
             with open(f"{temp_dir}/pcf.csr", "w") as f:
                 f.write("whatever csr")
 
-            state_out = self.ctx.run("collect_unit_status", state_in)
+            state_out = self.ctx.run(self.ctx.on.collect_unit_status(), state_in)
 
             assert state_out.unit_status == WaitingStatus(
                 "Waiting for certificates to be available"
@@ -276,11 +276,11 @@ class TestCharmCollectStatus(PCFUnitTestFixtures):
             )
             config_mount = scenario.Mount(
                 location="/etc/pcf/",
-                src=temp_dir,
+                source=temp_dir,
             )
             certs_mount = scenario.Mount(
                 location="/support/TLS/",
-                src=temp_dir,
+                source=temp_dir,
             )
             container = scenario.Container(
                 name="pcf",
@@ -296,13 +296,13 @@ class TestCharmCollectStatus(PCFUnitTestFixtures):
             self.mock_sdcore_config_webui_url.return_value = "http://webui.url"
             self.mock_check_output.return_value = b"1.2.3.4"
             provider_certificate, private_key = example_cert_and_key(
-                relation_id=certificates_relation.relation_id
+                relation_id=certificates_relation.id
             )
             self.mock_get_assigned_certificate.return_value = (provider_certificate, private_key)
             with open(f"{temp_dir}/pcf.csr", "w") as f:
                 f.write("whatever csr")
 
-            state_out = self.ctx.run("collect_unit_status", state_in)
+            state_out = self.ctx.run(self.ctx.on.collect_unit_status(), state_in)
 
             assert state_out.unit_status == WaitingStatus("Waiting for PCF service to start")
 
@@ -324,18 +324,18 @@ class TestCharmCollectStatus(PCFUnitTestFixtures):
             )
             config_mount = scenario.Mount(
                 location="/etc/pcf/",
-                src=temp_dir,
+                source=temp_dir,
             )
             certs_mount = scenario.Mount(
                 location="/support/TLS/",
-                src=temp_dir,
+                source=temp_dir,
             )
             container = scenario.Container(
                 name="pcf",
                 can_connect=True,
                 mounts={"config": config_mount, "certs": certs_mount},
                 layers={"pcf": Layer({"services": {"pcf": {}}})},
-                service_status={"pcf": ServiceStatus.ACTIVE},
+                service_statuses={"pcf": ServiceStatus.ACTIVE},
             )
             state_in = scenario.State(
                 containers=[container],
@@ -346,13 +346,13 @@ class TestCharmCollectStatus(PCFUnitTestFixtures):
             self.mock_sdcore_config_webui_url.return_value = "http://webui.url"
             self.mock_check_output.return_value = b"1.2.3.4"
             provider_certificate, private_key = example_cert_and_key(
-                relation_id=certificates_relation.relation_id
+                relation_id=certificates_relation.id
             )
             self.mock_get_assigned_certificate.return_value = (provider_certificate, private_key)
             with open(f"{temp_dir}/pcf.csr", "w") as f:
                 f.write("whatever csr")
 
-            state_out = self.ctx.run("collect_unit_status", state_in)
+            state_out = self.ctx.run(self.ctx.on.collect_unit_status(), state_in)
 
             assert state_out.unit_status == ActiveStatus()
 
@@ -369,7 +369,7 @@ class TestCharmCollectStatus(PCFUnitTestFixtures):
             )
             workload_version_mount = scenario.Mount(
                 location="/etc",
-                src=tempdir,
+                source=tempdir,
             )
             container = scenario.Container(
                 name="pcf", can_connect=True, mounts={"workload-version": workload_version_mount}
@@ -380,7 +380,7 @@ class TestCharmCollectStatus(PCFUnitTestFixtures):
                 relations=[nrf_relation, certificates_relation, sdcore_config_relation],
             )
 
-            state_out = self.ctx.run("collect_unit_status", state_in)
+            state_out = self.ctx.run(self.ctx.on.collect_unit_status(), state_in)
 
             assert state_out.workload_version == ""
 
@@ -397,7 +397,7 @@ class TestCharmCollectStatus(PCFUnitTestFixtures):
             )
             workload_version_mount = scenario.Mount(
                 location="/etc",
-                src=tempdir,
+                source=tempdir,
             )
             expected_version = "1.2.3"
             with open(f"{tempdir}/workload-version", "w") as f:
@@ -411,6 +411,6 @@ class TestCharmCollectStatus(PCFUnitTestFixtures):
                 relations=[nrf_relation, certificates_relation, sdcore_config_relation],
             )
 
-            state_out = self.ctx.run("collect_unit_status", state_in)
+            state_out = self.ctx.run(self.ctx.on.collect_unit_status(), state_in)
 
             assert state_out.workload_version == expected_version
