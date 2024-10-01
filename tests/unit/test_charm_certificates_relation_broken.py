@@ -19,11 +19,11 @@ class TestCharmCertificatesRelationBroken(PCFUnitTestFixtures):
             )
             certs_mount = scenario.Mount(
                 location="/support/TLS",
-                src=tempdir,
+                source=tempdir,
             )
             config_mount = scenario.Mount(
                 location="/etc/pcf/",
-                src=tempdir,
+                source=tempdir,
             )
             container = scenario.Container(
                 name="pcf",
@@ -44,7 +44,7 @@ class TestCharmCertificatesRelationBroken(PCFUnitTestFixtures):
                 leader=True,
             )
 
-            self.ctx.run(certificates_relation.broken_event, state_in)
+            self.ctx.run(self.ctx.on.relation_broken(certificates_relation), state_in)
 
             assert not os.path.exists(f"{tempdir}/pcf.pem")
             assert not os.path.exists(f"{tempdir}/pcf.key")
