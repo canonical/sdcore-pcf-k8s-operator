@@ -39,7 +39,7 @@ Create integrations, for instance:
 
 ```text
 resource "juju_integration" "pcf-nrf" {
-  model = var.model_name
+  model = juju_model.my_model.name
   application {
     name     = module.pcf.app_name
     endpoint = module.pcf.requires.fiveg_nrf
