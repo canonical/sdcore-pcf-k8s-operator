@@ -19,7 +19,7 @@ from charms.sdcore_nms_k8s.v0.sdcore_config import (
 from charms.sdcore_nrf_k8s.v0.fiveg_nrf import NRFRequires
 from charms.tls_certificates_interface.v4.tls_certificates import (
     Certificate,
-    CertificateRequest,
+    CertificateRequestAttributes,
     Mode,
     PrivateKey,
     TLSCertificatesRequiresV4,
@@ -296,8 +296,8 @@ class PCFOperatorCharm(CharmBase):
         )
         return bool(cert and key)
 
-    def _get_certificate_request(self) -> CertificateRequest:
-        return CertificateRequest(
+    def _get_certificate_request(self) -> CertificateRequestAttributes:
+        return CertificateRequestAttributes(
             common_name=CERTIFICATE_COMMON_NAME,
             sans_dns=frozenset([CERTIFICATE_COMMON_NAME]),
         )
