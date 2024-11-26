@@ -7,9 +7,9 @@ A Charmed Operator for Aether SD-Core's Policy Control Function (PCF) component 
 
 ```bash
 juju deploy mongodb-k8s --channel=6/stable --trust
-juju deploy sdcore-nrf-k8s --channel=1.5/edge
-juju deploy sdcore-pcf-k8s --channel=1.5/edge 
-juju deploy sdcore-nms-k8s --channel=1.5/edge
+juju deploy sdcore-nrf-k8s --channel=1.6/edge
+juju deploy sdcore-pcf-k8s --channel=1.6/edge 
+juju deploy sdcore-nms-k8s --channel=1.6/edge
 juju deploy self-signed-certificates --channel=stable
 
 juju integrate sdcore-nms-k8s:common_database mongodb-k8s:database
