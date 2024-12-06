@@ -234,6 +234,9 @@ class PCFOperatorCharm(CharmBase):
         if not self._container.can_connect():
             return False
 
+        if self._get_invalid_configs():
+            return False
+
         if self._missing_relations():
             return False
 
