@@ -17,7 +17,7 @@ def example_cert_and_key(relation_id: int) -> tuple[ProviderCertificate, Private
     private_key = generate_private_key()
     csr = generate_csr(
         private_key=private_key,
-        common_name="amf",
+        common_name="pcf",
     )
     ca_private_key = generate_private_key()
     ca_certificate = generate_ca(

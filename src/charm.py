@@ -7,7 +7,7 @@
 import logging
 from ipaddress import IPv4Address
 from subprocess import check_output
-from typing import List, Optional
+from typing import List, Optional, cast
 
 from charms.loki_k8s.v1.loki_push_api import LogForwarder
 from charms.prometheus_k8s.v0.prometheus_scrape import (
@@ -144,6 +144,13 @@ class PCFOperatorCharm(CharmBase):
 
         if not self._container.can_connect():
             event.add_status(WaitingStatus("Waiting for container to be ready"))
+            return
+
+        if invalid_configs := self._get_invalid_configs():
+            event.add_status(
+                BlockedStatus(f"The following configurations are not valid: {invalid_configs}")
+            )
+            logger.info("The following configurations are not valid: %s", invalid_configs)
             return
 
         self.unit.set_workload_version(self._get_workload_version())
@@ -283,12 +290,16 @@ class PCFOperatorCharm(CharmBase):
             return ""
         if not self._webui_requires.webui_url:
             return ""
+        if not (log_level := self._get_log_level_config()):
+            raise ValueError("Log level configuration value is empty")
+
         return self._render_config_file(
             nrf_url=self._nrf_requires.nrf_url,
             pcf_sbi_port=PCF_SBI_PORT,
             pod_ip=pod_ip,
             scheme="https",
             webui_uri=self._webui_requires.webui_url,
+            log_level=log_level,
         )
 
     def _certificate_is_available(self) -> bool:
@@ -391,6 +402,24 @@ class PCFOperatorCharm(CharmBase):
         )
         logger.info("Pushed private key to workload")
 
+    def _get_invalid_configs(self) -> list[str]:
+        """Return list of invalid configurations.
+
+        Returns:
+            list: List of strings matching config keys.
+        """
+        invalid_configs = []
+        if not self._is_log_level_valid():
+            invalid_configs.append("log-level")
+        return invalid_configs
+
+    def _get_log_level_config(self) -> Optional[str]:
+        return cast(Optional[str], self.model.config.get("log-level"))
+
+    def _is_log_level_valid(self) -> bool:
+        log_level = self._get_log_level_config()
+        return log_level in ["debug", "info", "warn", "error", "fatal", "panic"]
+
     def _get_workload_version(self) -> str:
         """Return the workload version.
 
@@ -433,6 +462,7 @@ class PCFOperatorCharm(CharmBase):
         pod_ip: str,
         scheme: str,
         webui_uri: str,
+        log_level: str,
     ) -> str:
         """Render the config file content.
 
@@ -442,6 +472,7 @@ class PCFOperatorCharm(CharmBase):
             pod_ip (str): Pod IPv4.
             scheme (str): SBI interface scheme ("http" or "https")
             webui_uri (str) : URL of the Webui
+            log_level (str): Log level for the PCF.
 
         Returns:
             str: Config file content.
@@ -454,6 +485,7 @@ class PCFOperatorCharm(CharmBase):
             pod_ip=pod_ip,
             scheme=scheme,
             webui_uri=webui_uri,
+            log_level=log_level,
         )
 
     def _config_file_is_written(self) -> bool:
