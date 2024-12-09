@@ -185,10 +185,6 @@ class TestCharmConfigure(PCFUnitTestFixtures):
                                 "override": "replace",
                                 "command": "/bin/pcf --pcfcfg /etc/pcf/pcfcfg.yaml",
                                 "environment": {
-                                    "GRPC_GO_LOG_VERBOSITY_LEVEL": "99",
-                                    "GRPC_GO_LOG_SEVERITY_LEVEL": "info",
-                                    "GRPC_TRACE": "all",
-                                    "GRPC_VERBOSITY": "debug",
                                     "POD_IP": "1.1.1.1",
                                     "MANAGED_BY_CONFIG_POD": "true",
                                 },
