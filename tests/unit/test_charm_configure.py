@@ -191,6 +191,7 @@ class TestCharmConfigure(PCFUnitTestFixtures):
                                     "GRPC_VERBOSITY": "debug",
                                     "POD_IP": "1.1.1.1",
                                     "MANAGED_BY_CONFIG_POD": "true",
+                                    "GIN_MODE": "release",
                                 },
                             }
                         },
