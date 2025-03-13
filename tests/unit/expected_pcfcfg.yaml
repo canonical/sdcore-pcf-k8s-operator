@@ -8,6 +8,9 @@ configuration:
     port: 29507
     registerIPv4: 1.1.1.1
     scheme: https
+    tls:
+      pem: /sdcore/certs/pcf.pem
+      key: /sdcore/certs/pcf.key
   enableNrfCaching: true
   nrfCacheEvictionInterval: 900
   serviceList:

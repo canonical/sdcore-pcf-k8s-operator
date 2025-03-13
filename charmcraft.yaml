@@ -16,15 +16,15 @@ containers:
     resource: pcf-image
     mounts:
       - storage: config
-        location: /etc/pcf/
+        location: /sdcore/config
       - storage: certs
-        location: /support/TLS
+        location: /sdcore/certs
 
 resources:
   pcf-image:
     type: oci-image
     description: OCI image for 5G pcf
-    upstream-source: ghcr.io/canonical/sdcore-pcf:1.5.2
+    upstream-source: ghcr.io/canonical/sdcore-pcf:1.6.1
 
 storage:
   config:

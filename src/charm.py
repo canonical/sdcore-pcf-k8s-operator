@@ -41,12 +41,12 @@ from ops.pebble import Layer
 logger = logging.getLogger(__name__)
 
 PROMETHEUS_PORT = 8080
-BASE_CONFIG_PATH = "/etc/pcf"
+BASE_CONFIG_PATH = "/sdcore/config"
 CONFIG_FILE_NAME = "pcfcfg.yaml"
 PCF_SBI_PORT = 29507
 NRF_RELATION_NAME = "fiveg_nrf"
 TLS_RELATION_NAME = "certificates"
-CERTS_DIR_PATH = "/support/TLS"  # Certificate paths are hardcoded in PCF code
+CERTS_DIR_PATH = "/sdcore/certs"
 PRIVATE_KEY_NAME = "pcf.key"
 CERTIFICATE_NAME = "pcf.pem"
 CERTIFICATE_COMMON_NAME = "pcf.sdcore"
@@ -302,6 +302,8 @@ class PCFOperatorCharm(CharmBase):
             pod_ip=pod_ip,
             scheme="https",
             webui_uri=self._webui_requires.webui_url,
+            tls_pem=f"{CERTS_DIR_PATH}/{CERTIFICATE_NAME}",
+            tls_key=f"{CERTS_DIR_PATH}/{PRIVATE_KEY_NAME}",
             log_level=log_level,
         )
 
@@ -465,6 +467,8 @@ class PCFOperatorCharm(CharmBase):
         pod_ip: str,
         scheme: str,
         webui_uri: str,
+        tls_pem: str,
+        tls_key: str,
         log_level: str,
     ) -> str:
         """Render the config file content.
@@ -475,6 +479,8 @@ class PCFOperatorCharm(CharmBase):
             pod_ip (str): Pod IPv4.
             scheme (str): SBI interface scheme ("http" or "https")
             webui_uri (str) : URL of the Webui
+            tls_pem (str): Path to the TLS certificate.
+            tls_key (str): Path to the TLS private key.
             log_level (str): Log level for the PCF.
 
         Returns:
@@ -488,6 +494,8 @@ class PCFOperatorCharm(CharmBase):
             pod_ip=pod_ip,
             scheme=scheme,
             webui_uri=webui_uri,
+            tls_pem=tls_pem,
+            tls_key=tls_key,
             log_level=log_level,
         )
 
@@ -537,7 +545,7 @@ class PCFOperatorCharm(CharmBase):
                     self._service_name: {
                         "override": "replace",
                         "startup": "enabled",
-                        "command": f"/bin/pcf --pcfcfg {BASE_CONFIG_PATH}/{CONFIG_FILE_NAME}",
+                        "command": f"/bin/pcf --cfg {BASE_CONFIG_PATH}/{CONFIG_FILE_NAME}",
                         "environment": self._environment_variables,
                     },
                 },
