@@ -183,7 +183,7 @@ class TestCharmConfigure(PCFUnitTestFixtures):
                             "pcf": {
                                 "startup": "enabled",
                                 "override": "replace",
-                                "command": "/bin/pcf --pcfcfg /etc/pcf/pcfcfg.yaml",
+                                "command": "/bin/pcf --cfg /etc/pcf/pcfcfg.yaml",
                                 "environment": {
                                     "POD_IP": "1.1.1.1",
                                     "MANAGED_BY_CONFIG_POD": "true",
