@@ -16,9 +16,9 @@ containers:
     resource: pcf-image
     mounts:
       - storage: config
-        location: /etc/pcf/
+        location: /sdcore/config
       - storage: certs
-        location: /support/TLS
+        location: /sdcore/certs
 
 resources:
   pcf-image:

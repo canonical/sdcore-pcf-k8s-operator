@@ -18,11 +18,11 @@ class TestCharmCertificatesRelationBroken(PCFUnitTestFixtures):
                 endpoint="certificates", interface="tls-certificates"
             )
             certs_mount = testing.Mount(
-                location="/support/TLS",
+                location="/sdcore/certs",
                 source=tempdir,
             )
             config_mount = testing.Mount(
-                location="/etc/pcf/",
+                location="/sdcore/config/",
                 source=tempdir,
             )
             container = testing.Container(
@@ -30,8 +30,8 @@ class TestCharmCertificatesRelationBroken(PCFUnitTestFixtures):
                 can_connect=True,
                 mounts={"certs": certs_mount, "config": config_mount},
             )
-            os.mkdir(f"{tempdir}/support")
-            os.mkdir(f"{tempdir}/support/TLS")
+            os.mkdir(f"{tempdir}/sdcore")
+            os.mkdir(f"{tempdir}/sdcore/certs")
             with open(f"{tempdir}/pcf.pem", "w") as f:
                 f.write("certificate")
 

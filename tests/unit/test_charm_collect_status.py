@@ -201,11 +201,11 @@ class TestCharmCollectStatus(PCFUnitTestFixtures):
                 interface="sdcore_config",
             )
             config_mount = testing.Mount(
-                location="/etc/pcf/",
+                location="/sdcore/config/",
                 source=temp_dir,
             )
             certs_mount = testing.Mount(
-                location="/support/TLS/",
+                location="/sdcore/certs/",
                 source=temp_dir,
             )
             container = testing.Container(
@@ -245,11 +245,11 @@ class TestCharmCollectStatus(PCFUnitTestFixtures):
                 interface="sdcore_config",
             )
             config_mount = testing.Mount(
-                location="/etc/pcf/",
+                location="/sdcore/config/",
                 source=temp_dir,
             )
             certs_mount = testing.Mount(
-                location="/support/TLS/",
+                location="/sdcore/certs/",
                 source=temp_dir,
             )
             container = testing.Container(
@@ -292,11 +292,11 @@ class TestCharmCollectStatus(PCFUnitTestFixtures):
                 interface="sdcore_config",
             )
             config_mount = testing.Mount(
-                location="/etc/pcf/",
+                location="/sdcore/config/",
                 source=temp_dir,
             )
             certs_mount = testing.Mount(
-                location="/support/TLS/",
+                location="/sdcore/certs/",
                 source=temp_dir,
             )
             container = testing.Container(
@@ -340,11 +340,11 @@ class TestCharmCollectStatus(PCFUnitTestFixtures):
                 interface="sdcore_config",
             )
             config_mount = testing.Mount(
-                location="/etc/pcf/",
+                location="/sdcore/config/",
                 source=temp_dir,
             )
             certs_mount = testing.Mount(
-                location="/support/TLS/",
+                location="/sdcore/certs/",
                 source=temp_dir,
             )
             container = testing.Container(
