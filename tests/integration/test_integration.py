@@ -23,7 +23,7 @@ DATABASE_CHARM_CHANNEL = "6/stable"
 TLS_CHARM_NAME = "self-signed-certificates"
 TLS_CHARM_CHANNEL = "latest/stable"
 GRAFANA_AGENT_CHARM_NAME = "grafana-agent-k8s"
-GRAFANA_AGENT_CHARM_CHANNEL = "latest/stable"
+GRAFANA_AGENT_CHARM_CHANNEL = "1/stable"
 SDCORE_CHARMS_BASE = "ubuntu@24.04"
 
 
