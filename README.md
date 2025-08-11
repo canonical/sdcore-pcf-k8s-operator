@@ -1,14 +1,18 @@
 # Aether SD-Core PCF Operator (k8s)
 [![CharmHub Badge](https://charmhub.io/sdcore-pcf-k8s/badge.svg)](https://charmhub.io/sdcore-pcf-k8s)
 
-A Charmed Operator for Aether SD-Core's Policy Control Function (PCF) component for K8s. 
+> **:warning: Deprecation Notice!**
+>
+> This project is deprecated and will not receive further updates. Please refer to the upstream [Aether](https://aetherproject.org/) project to continue using Aether.
+
+A Charmed Operator for Aether SD-Core's Policy Control Function (PCF) component for K8s.
 
 ## Usage
 
 ```bash
 juju deploy mongodb-k8s --channel=6/stable --trust
 juju deploy sdcore-nrf-k8s --channel=1.6/edge
-juju deploy sdcore-pcf-k8s --channel=1.6/edge 
+juju deploy sdcore-pcf-k8s --channel=1.6/edge
 juju deploy sdcore-nms-k8s --channel=1.6/edge
 juju deploy self-signed-certificates --channel=stable
 
